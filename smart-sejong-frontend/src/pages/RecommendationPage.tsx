@@ -28,7 +28,7 @@ export default function RecommendationPage() {
 
   const { data: courses, isLoading: coursesLoading } = useQuery({
     queryKey: ['courses-search', searchKeyword],
-    queryFn: () => api.searchCourses(searchKeyword),
+    queryFn: () => api.searchCourses({ name: searchKeyword }),
     enabled: searchKeyword.length > 0,
   })
 

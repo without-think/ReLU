@@ -5,11 +5,12 @@ import toast from 'react-hot-toast'
 import { Upload, FileSpreadsheet, Award } from 'lucide-react'
 import { Progress } from '@/components/ui/Progress'
 import { CourseCard } from '@/components/learning/CourseCard'
+import type { CompletedCourseItem, CompletedCourseSummary } from '@/types'
 
 const GRADUATION_REQUIREMENTS = {
   total: 130,
   major: 60,
-  ge: 50,
+  liberal: 50,
 }
 
 export default function LearningPage() {
@@ -17,25 +18,25 @@ export default function LearningPage() {
   const [file, setFile] = useState<File | null>(null)
 
   const { data: summary, isLoading: summaryLoading, error: summaryError } = useQuery({
-    queryKey: ['learning-summary'],
-    queryFn: () => api.getLearningSummary(),
-    retry: false, // 실패 시 재시도 안 함
+    queryKey: ['completed-courses-summary'],
+    queryFn: () => api.getCompletedCoursesSummary(),
+    retry: false,
     refetchOnWindowFocus: false,
   })
 
   const { data: courses, isLoading: coursesLoading, error: coursesError } = useQuery({
-    queryKey: ['courses'],
-    queryFn: () => api.getCourses(),
-    retry: false, // 실패 시 재시도 안 함
+    queryKey: ['completed-courses'],
+    queryFn: () => api.getCompletedCourses(),
+    retry: false,
     refetchOnWindowFocus: false,
   })
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => api.uploadGrades(file),
+    mutationFn: (file: File) => api.importCompletedCourses(file),
     onSuccess: (data) => {
-      toast.success(`${data.added_count}개 과목이 추가되었습니다!`)
-      queryClient.invalidateQueries({ queryKey: ['learning-summary'] })
-      queryClient.invalidateQueries({ queryKey: ['courses'] })
+      toast.success(`${data.successCount}개 과목이 저장되었습니다.`)
+      queryClient.invalidateQueries({ queryKey: ['completed-courses-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['completed-courses'] })
       setFile(null)
     },
     onError: () => {
@@ -54,19 +55,26 @@ export default function LearningPage() {
   const progressData = summary
     ? {
         total: {
-          current: summary.total,
+          current: summary.total.earnedCredits,
           max: GRADUATION_REQUIREMENTS.total,
-          percentage: Math.min((summary.total / GRADUATION_REQUIREMENTS.total) * 100, 100),
+          percentage: Math.min((summary.total.earnedCredits / GRADUATION_REQUIREMENTS.total) * 100, 100),
+          avg: summary.total.averageGradePoint,
         },
         major: {
-          current: summary.major,
+          current: summary.major.earnedCredits,
           max: GRADUATION_REQUIREMENTS.major,
-          percentage: Math.min((summary.major / GRADUATION_REQUIREMENTS.major) * 100, 100),
+          percentage: Math.min((summary.major.earnedCredits / GRADUATION_REQUIREMENTS.major) * 100, 100),
+          avg: summary.major.averageGradePoint,
         },
-        ge: {
-          current: summary.ge,
-          max: GRADUATION_REQUIREMENTS.ge,
-          percentage: Math.min((summary.ge / GRADUATION_REQUIREMENTS.ge) * 100, 100),
+        liberal: {
+          current: summary.liberal.earnedCredits,
+          max: GRADUATION_REQUIREMENTS.liberal,
+          percentage: Math.min((summary.liberal.earnedCredits / GRADUATION_REQUIREMENTS.liberal) * 100, 100),
+          avg: summary.liberal.averageGradePoint,
+        },
+        other: {
+          current: summary.other.earnedCredits,
+          avg: summary.other.averageGradePoint,
         },
       }
     : null
@@ -88,14 +96,14 @@ export default function LearningPage() {
           <label className="flex-1">
             <input
               type="file"
-              accept=".csv,.xlsx,.xls"
+              accept=".xlsx,.xls"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
               className="hidden"
             />
             <div className="flex items-center space-x-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-primary-500 transition-colors">
               <Upload className="w-5 h-5 text-gray-400" />
               <span className="text-gray-600">
-                {file ? file.name : 'CSV 또는 엑셀 파일을 선택하세요'}
+                {file ? file.name : '기이수성적 Excel 파일(.xlsx)을 선택하세요'}
               </span>
             </div>
           </label>
@@ -135,7 +143,7 @@ export default function LearningPage() {
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium text-gray-700">총 이수 학점</span>
                 <span className="text-sm font-semibold text-gray-900">
-                  {progressData.total.current} / {progressData.total.max} 학점
+                  {progressData.total.current} / {progressData.total.max} 학점 (평점 {progressData.total.avg.toFixed(2)})
                 </span>
               </div>
               <Progress value={progressData.total.percentage} />
@@ -144,7 +152,7 @@ export default function LearningPage() {
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium text-gray-700">전공 학점</span>
                 <span className="text-sm font-semibold text-gray-900">
-                  {progressData.major.current} / {progressData.major.max} 학점
+                  {progressData.major.current} / {progressData.major.max} 학점 (평점 {progressData.major.avg.toFixed(2)})
                 </span>
               </div>
               <Progress value={progressData.major.percentage} />
@@ -153,10 +161,10 @@ export default function LearningPage() {
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium text-gray-700">교양 학점</span>
                 <span className="text-sm font-semibold text-gray-900">
-                  {progressData.ge.current} / {progressData.ge.max} 학점
+                  {progressData.liberal.current} / {progressData.liberal.max} 학점 (평점 {progressData.liberal.avg.toFixed(2)})
                 </span>
               </div>
-              <Progress value={progressData.ge.percentage} />
+              <Progress value={progressData.liberal.percentage} />
             </div>
           </div>
         </div>
@@ -180,8 +188,8 @@ export default function LearningPage() {
           </div>
         ) : courses && courses.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {courses.map((course) => (
-              <CourseCard key={course.id} course={course} />
+            {courses.map((course, idx) => (
+              <CourseCard key={course.id ?? `course-${idx}`} course={course} />
             ))}
           </div>
         ) : (

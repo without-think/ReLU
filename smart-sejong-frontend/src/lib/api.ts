@@ -7,6 +7,9 @@ import type {
   Course,
   LearningSummary,
   UploadResponse,
+  CompletedCourseItem,
+  CompletedCourseSummary,
+  CompletedCourseUploadResult,
   CourseMaster,
   Section,
   Timetable,
@@ -25,6 +28,13 @@ import type {
 } from '@/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+
+function formatSectionTime(s: { startTime?: string; endTime?: string }): string {
+  const start = s.startTime ?? ''
+  const end = s.endTime ?? ''
+  if (start && end) return `${start}~${end}`
+  return start || end || ''
+}
 
 class ApiClient {
   private client: AxiosInstance
@@ -104,15 +114,34 @@ class ApiClient {
   }
 
   async getMyInfo(): Promise<UserInfo> {
-    const { data } = await this.client.get<UserInfo>('/api/users/me')
-    return data
+    const { data } = await this.client.get<{ status?: number; data?: UserInfo }>('/api/users/me')
+    if (data?.data) return data.data
+    return data as unknown as UserInfo
   }
 
   async updateMyInfo(updates: { name?: string; major?: string }): Promise<void> {
     await this.client.put('/api/users/me', updates)
   }
 
-  // Learning APIs
+  /** 서비스 탈퇴 (계정 및 데이터 영구 삭제) */
+  async deleteAccount(): Promise<void> {
+    const { data } = await this.client.delete<{ status?: number }>('/api/users/me')
+    if (data?.status === 200) {
+      localStorage.removeItem('token')
+    }
+  }
+
+  /** 포털 정보 재동기화 (전과 등 변경 시) */
+  async syncPortalData(password: string): Promise<{ updatedFields?: string[] }> {
+    const { data } = await this.client.post<{ status?: number; data?: { updatedFields?: string[] } }>(
+      '/api/users/me/sync',
+      { password }
+    )
+    if (data?.data) return data.data
+    return {}
+  }
+
+  // Learning APIs (legacy)
   async uploadGrades(file: File): Promise<UploadResponse> {
     const formData = new FormData()
     formData.append('file', file)
@@ -138,24 +167,141 @@ class ApiClient {
     return data
   }
 
-  // Course APIs
-  async searchCourses(keyword?: string): Promise<CourseMaster[]> {
-    const { data } = await this.client.get<CourseMaster[]>('/api/courses', {
-      params: { keyword },
-    })
-    return data
+  // Completed Course (기이수 과목) APIs
+  /** 기이수 Excel 파싱만 (DB 저장 없음) */
+  async uploadCompletedCoursesParseOnly(file: File): Promise<CompletedCourseItem[]> {
+    const formData = new FormData()
+    formData.append('file', file)
+    const { data } = await this.client.post<{ status?: number; data?: CompletedCourseItem[] }>(
+      '/api/completed-courses/upload',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    )
+    if (data?.data) return data.data
+    return (data as unknown as CompletedCourseItem[]) ?? []
+  }
+
+  /** 기이수 Excel 업로드 후 DB 저장 */
+  async importCompletedCourses(file: File): Promise<CompletedCourseUploadResult> {
+    const formData = new FormData()
+    formData.append('file', file)
+    const { data } = await this.client.post<{ status?: number; data?: CompletedCourseUploadResult }>(
+      '/api/completed-courses/import',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    )
+    if (data?.data) return data.data
+    throw new Error('저장 결과를 받지 못했습니다.')
+  }
+
+  async getCompletedCourses(userId?: number): Promise<CompletedCourseItem[]> {
+    const params = userId != null ? { userId } : {}
+    const { data } = await this.client.get<{ status?: number; data?: CompletedCourseItem[] }>(
+      '/api/completed-courses',
+      { params }
+    )
+    if (data?.data) return data.data
+    return (data as unknown as CompletedCourseItem[]) ?? []
+  }
+
+  async getCompletedCoursesSummary(userId?: number): Promise<CompletedCourseSummary> {
+    const params = userId != null ? { userId } : {}
+    const { data } = await this.client.get<{ status?: number; data?: CompletedCourseSummary }>(
+      '/api/completed-courses/summary',
+      { params }
+    )
+    if (data?.data) return data.data
+    throw new Error('요약 정보를 받지 못했습니다.')
+  }
+
+  private mapCourseToMaster(c: { id?: number; courseCode?: string; code?: string; name?: string; credits?: number }): CourseMaster {
+    return {
+      id: c.id ?? 0,
+      code: c.courseCode ?? c.code ?? '',
+      name: c.name ?? '',
+      credits: c.credits,
+    }
+  }
+
+  // Course APIs (CommonResponse unwrapped)
+  async getAllCourses(): Promise<CourseMaster[]> {
+    const { data } = await this.client.get<{ status?: number; data?: unknown[] }>('/api/courses')
+    const list = data?.data ?? (data as unknown as unknown[]) ?? []
+    return list.map((c) => this.mapCourseToMaster(c as Record<string, unknown>))
+  }
+
+  async searchCourses(params?: { name?: string; category?: string }): Promise<CourseMaster[]> {
+    const { data } = await this.client.get<{ status?: number; data?: unknown[] }>(
+      '/api/courses/search',
+      { params: params ?? {} }
+    )
+    const list = data?.data ?? (data as unknown as unknown[]) ?? []
+    return list.map((c) => this.mapCourseToMaster(c as Record<string, unknown>))
   }
 
   async getCourseDetails(id: number): Promise<CourseMaster> {
-    const { data } = await this.client.get<CourseMaster>(`/api/courses/${id}`)
-    return data
+    const { data } = await this.client.get<{ status?: number; data?: unknown }>(
+      `/api/courses/${id}`
+    )
+    const c = data?.data ?? data
+    if (c && typeof c === 'object') return this.mapCourseToMaster(c as Record<string, unknown>)
+    throw new Error('과목 정보를 받지 못했습니다.')
+  }
+
+  async getCourseByCode(courseCode: string): Promise<CourseMaster> {
+    const { data } = await this.client.get<{ status?: number; data?: unknown }>(
+      `/api/courses/code/${encodeURIComponent(courseCode)}`
+    )
+    const c = data?.data ?? data
+    if (c && typeof c === 'object') return this.mapCourseToMaster(c as Record<string, unknown>)
+    throw new Error('과목 정보를 받지 못했습니다.')
   }
 
   async getSections(courseId: number): Promise<Section[]> {
-    const { data } = await this.client.get<Section[]>(
+    const { data } = await this.client.get<{ status?: number; data?: Section[] }>(
       `/api/courses/${courseId}/sections`
     )
-    return data
+    const raw = data?.data ?? (data as unknown as Section[])
+    if (!raw || !Array.isArray(raw)) return []
+    return raw.map((s) => ({
+      section_id: (s as { section_id?: number; id?: number }).section_id ?? (s as { id?: number }).id ?? 0,
+      professor: (s as Section).professor ?? '',
+      day: (s as { day?: string; dayOfWeekKor?: string }).day ?? (s as { dayOfWeekKor?: string }).dayOfWeekKor ?? '',
+      time: formatSectionTime(s as { startTime?: string; endTime?: string }),
+    }))
+  }
+
+  async getAllSections(): Promise<Section[]> {
+    const { data } = await this.client.get<{ status?: number; data?: Section[] }>(
+      '/api/courses/sections'
+    )
+    const raw = data?.data ?? (data as unknown as Section[])
+    if (!raw || !Array.isArray(raw)) return []
+    return raw.map((s) => ({
+      section_id: (s as { section_id?: number; id?: number }).section_id ?? (s as { id?: number }).id ?? 0,
+      professor: (s as Section).professor ?? '',
+      day: (s as { day?: string; dayOfWeekKor?: string }).day ?? (s as { dayOfWeekKor?: string }).dayOfWeekKor ?? '',
+      time: formatSectionTime(s as { startTime?: string; endTime?: string }),
+    }))
+  }
+
+  async searchSections(params?: {
+    courseName?: string
+    professor?: string
+    dayOfWeek?: string
+  }): Promise<Section[]> {
+    const { data } = await this.client.get<{ status?: number; data?: Section[] }>(
+      '/api/courses/sections/search',
+      { params: params ?? {} }
+    )
+    const raw = data?.data ?? (data as unknown as Section[])
+    if (!raw || !Array.isArray(raw)) return []
+    return raw.map((s) => ({
+      section_id: (s as { section_id?: number; id?: number }).section_id ?? (s as { id?: number }).id ?? 0,
+      professor: (s as Section).professor ?? '',
+      day: (s as { day?: string; dayOfWeekKor?: string }).day ?? (s as { dayOfWeekKor?: string }).dayOfWeekKor ?? '',
+      time: formatSectionTime(s as { startTime?: string; endTime?: string }),
+    }))
   }
 
   // Timetable APIs

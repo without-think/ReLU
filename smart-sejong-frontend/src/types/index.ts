@@ -25,7 +25,7 @@ export interface LoginRequest {
   password: string
 }
 
-// Learning Types
+// Learning Types (legacy, prefer CompletedCourse)
 export interface Course {
   id: number
   course_name: string
@@ -42,6 +42,41 @@ export interface LearningSummary {
 export interface UploadResponse {
   added_count: number
   total_credits: number
+}
+
+// Completed Course (기이수 과목) Types
+export interface CompletedCourseItem {
+  id?: number
+  courseCode: string
+  courseName: string
+  category: string
+  credits: number
+  grade: string
+  gradePoint: number
+  year?: string
+  semester?: string
+}
+
+export interface CategorySummary {
+  totalCredits: number
+  earnedCredits: number
+  totalGradePoints: number
+  gradePointCredits: number
+  averageGradePoint: number
+}
+
+export interface CompletedCourseSummary {
+  major: CategorySummary
+  liberal: CategorySummary
+  other: CategorySummary
+  total: CategorySummary
+}
+
+export interface CompletedCourseUploadResult {
+  totalRows: number
+  successCount: number
+  failCount: number
+  skipCount: number
 }
 
 // Course Types
