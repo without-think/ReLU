@@ -9,6 +9,7 @@ import com.smartsejong.api.domain.user.repository.UserRepository;
 import com.smartsejong.api.exception.CustomException;
 import com.smartsejong.api.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +32,7 @@ public class GroupServiceImpl implements GroupService {
     private final MessageReadReceiptRepository messageReadReceiptRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     private static final String CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -765,7 +767,9 @@ public class GroupServiceImpl implements GroupService {
                 .build();
         groupMessageRepository.save(message);
 
-        return new MessageResponse(message);
+        MessageResponse response = new MessageResponse(message);
+        messagingTemplate.convertAndSend("/topic/group/" + groupId, response);
+        return response;
     }
 
     @Override

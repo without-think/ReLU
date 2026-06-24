@@ -126,7 +126,11 @@ export default function GroupPage() {
     return id ? Number(id) : null
   })
   const [activeTab, setActiveTab] = useState<Tab>('home')
-  const [teamView, setTeamView] = useState<TeamView>(() => searchParams.get('tab') === 'find' ? 'find' : 'mine')
+  const [teamView, setTeamView] = useState<TeamView>(() => {
+    const role = user?.role
+    const isProf = role === 'PROFESSOR' || role === 'ADMIN'
+    return (!isProf && searchParams.get('tab') === 'find') ? 'find' : 'mine'
+  })
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showJoinModal, setShowJoinModal] = useState(false)
 
@@ -204,11 +208,13 @@ export default function GroupPage() {
   }, [selectedCourse?.courseId])
 
   useEffect(() => {
-    const nextView = searchParams.get('tab') === 'find' ? 'find' : 'mine'
+    const role = user?.role
+    const isProf = role === 'PROFESSOR' || role === 'ADMIN'
+    const nextView = (!isProf && searchParams.get('tab') === 'find') ? 'find' : 'mine'
     setTeamView(nextView)
     const selectedId = searchParams.get('selected')
     if (selectedId) setSelectedGroupId(Number(selectedId))
-  }, [searchParams])
+  }, [searchParams, user?.role])
 
   // If roles just got confirmed, the active tab might not exist in the new set — keep it if valid, else snap to roles
   useEffect(() => {
@@ -654,23 +660,6 @@ function TeamDashboard({ courses, selectedCourse, myGroups, courseGroups, myGrou
         )}
       </div>
 
-      {view === 'find' && courses.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {courses.map(course => (
-            <button
-              key={course.courseId}
-              onClick={() => onSelectCourse(course)}
-              className={`px-3 py-2 rounded-full border text-sm font-bold whitespace-nowrap transition-colors ${
-                selectedCourse?.courseId === course.courseId
-                  ? 'bg-[#4a8768] text-white border-[#4a8768]'
-                  : 'bg-white/70 text-[#7a7169] border-[#e7e0d7] hover:border-[#4a8768]/40'
-              }`}
-            >
-              {course.courseName}
-            </button>
-          ))}
-        </div>
-      )}
 
       {view === 'find' && !selectedCourse ? (
         <div className="text-center py-12 text-[#b0a8a0]">
@@ -2463,33 +2452,25 @@ function AiAnalysisTab({ groupId, groupName }: { groupId: number; groupName: str
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="card p-5 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100">
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">🤖</span>
-          <div>
-            <h3 className="font-bold text-lg text-[#25231f]">AI 팀 분석</h3>
-            <p className="text-sm text-[#8a8078]">동료 평가 데이터를 기반으로 기여도와 역량을 분석합니다.</p>
-          </div>
-        </div>
-      </div>
-
       {/* 무임승차 탐지 */}
       {freeRiders.length > 0 && (
-        <div className="card p-4 bg-red-50 border border-red-200">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="font-bold text-red-700">무임승차 의심 탐지됨</p>
+        <div className="relative overflow-hidden rounded-3xl border border-red-200/60 bg-white/30 backdrop-blur-md shadow-lg">
+          <div className="absolute inset-0 bg-gradient-to-br from-red-100/50 via-rose-50/30 to-orange-50/20 pointer-events-none" />
+          <div className="relative p-5 flex items-start gap-3">
+            <div className="flex-shrink-0 w-9 h-9 rounded-2xl bg-red-500/10 backdrop-blur-sm border border-red-300/40 flex items-center justify-center">
+              <AlertTriangle className="w-4.5 h-4.5 text-red-500" />
+            </div>
+            <div className="space-y-3 flex-1">
+              <p className="font-bold text-red-700 text-sm tracking-wide">무임승차 의심 탐지됨</p>
               {freeRiders.map(fr => (
-                <div key={fr.userId} className="flex flex-wrap items-center gap-2 text-sm text-red-600">
-                  <span className="font-semibold">{fr.name}</span>
-                  <span>·</span>
-                  <span>평균 기여도 {fr.avgContributionScore.toFixed(1)}%</span>
-                  <span>·</span>
-                  <span>동료 평가 {avgScore(fr).toFixed(1)}/5</span>
-                  <span>·</span>
-                  <span>{fr.reviewCount}명 평가</span>
+                <div key={fr.userId} className="rounded-2xl bg-white/40 border border-red-100/60 backdrop-blur-sm px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                  <span className="font-bold text-[#25231f]">{fr.name}</span>
+                  <span className="text-red-300">·</span>
+                  <span className="text-red-600">평균 기여도 <span className="font-semibold">{fr.avgContributionScore.toFixed(1)}%</span></span>
+                  <span className="text-red-300">·</span>
+                  <span className="text-red-600">동료 평가 <span className="font-semibold">{avgScore(fr).toFixed(1)}/5</span></span>
+                  <span className="text-red-300">·</span>
+                  <span className="text-red-500">{fr.reviewCount}명 평가</span>
                 </div>
               ))}
             </div>
@@ -2499,20 +2480,23 @@ function AiAnalysisTab({ groupId, groupName }: { groupId: number; groupName: str
 
       {/* 기여도 분석 */}
       <div className="card p-5">
-        <h4 className="font-bold text-[#25231f] mb-4">기여도 분석 <span className="text-xs font-normal text-[#8a8078]">(동료 평가 기반)</span></h4>
+        <h4 className="font-bold text-[#25231f] mb-4">기여도 분석</h4>
         <div className="space-y-3">
           {sortedByContrib.map((ms, i) => {
             const pct = ms.avgContributionScore
             const maxPct = sortedByContrib[0].avgContributionScore
             const barWidth = maxPct > 0 ? (pct / maxPct) * 100 : 0
+            const color = MEMBER_COLORS[i % MEMBER_COLORS.length]
             return (
               <div key={ms.userId} className="flex items-center gap-3">
                 <span className="text-sm font-medium w-16 text-right text-[#25231f] flex-shrink-0">{ms.name}</span>
-                <div className="flex-1 bg-gray-100 rounded-full h-5 relative overflow-hidden">
+                <div className="flex-1 rounded-full h-6 relative overflow-hidden bg-white/30 backdrop-blur-sm border border-white/50 shadow-inner">
                   <div
-                    className="h-5 rounded-full transition-all duration-500"
-                    style={{ width: `${barWidth}%`, backgroundColor: MEMBER_COLORS[i % MEMBER_COLORS.length] }}
-                  />
+                    className="h-full rounded-full transition-all duration-700 relative overflow-hidden"
+                    style={{ width: `${barWidth}%`, background: `linear-gradient(90deg, ${color}99, ${color})` }}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-b from-white/30 to-transparent rounded-full" />
+                  </div>
                 </div>
                 <span className="text-sm font-bold w-12 text-right text-[#25231f] flex-shrink-0">
                   {pct.toFixed(1)}%
@@ -2562,7 +2546,7 @@ function AiAnalysisTab({ groupId, groupName }: { groupId: number; groupName: str
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-4">
             <h4 className="font-bold text-[#25231f]">채팅 참여도 분석</h4>
-            <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded-full font-medium">카카오톡 기반</span>
+            <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded-full font-medium">채팅 기반</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse table-fixed">

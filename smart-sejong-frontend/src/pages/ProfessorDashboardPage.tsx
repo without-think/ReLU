@@ -336,16 +336,22 @@ export default function ProfessorDashboardPage() {
                     className="p-3 rounded-xl bg-[#6f4141]/5 border border-[#6f4141]/20 cursor-pointer hover:border-[#6f4141]/40 transition-colors"
                     onClick={() => navigate(`/group?selected=${fr.groupId}`)}
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-2">
-                        <Thermometer className="w-4 h-4 text-[#6f4141]" />
+                        <Thermometer className="w-4 h-4 text-red-500" />
                         <span className="font-bold text-sm text-[#25231f]">{fr.name}</span>
                       </div>
-                      <span className="text-xs font-bold text-[#6f4141]">
-                        {fr.avgContributionScore.toFixed(1)}점
+                      <span className="text-xs font-bold text-red-500">
+                        기여도 {fr.avgContributionScore.toFixed(1)}%
                       </span>
                     </div>
-                    <p className="text-xs text-[#7a7169] mt-1 truncate">{fr.groupName}</p>
+                    <div className="w-full h-2 rounded-full bg-red-100 overflow-hidden mb-1.5">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-red-400 to-red-600 transition-all duration-500"
+                        style={{ width: `${Math.min(fr.avgContributionScore, 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-[#7a7169] truncate">{fr.groupName}</p>
                   </div>
                 ))}
               </div>

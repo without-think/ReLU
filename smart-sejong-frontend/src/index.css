@@ -27,7 +27,7 @@
   --screen-bg:
     linear-gradient(rgba(240, 236, 230, 0.72), rgba(240, 236, 230, 0.72)),
     url('/bg.png') center / cover no-repeat fixed;
-  --ui-font: 'SeoulAlrim', 'Pretendard Variable', 'Noto Sans KR', system-ui, sans-serif;
+  --ui-font: 'SeoulAlrim', 'Pretendard Variable', 'Noto Sans KR', 'Noto Color Emoji', system-ui, sans-serif;
 
   --text-primary: #25231f;
   --text-secondary: #7a7169;
