@@ -206,7 +206,9 @@ export interface ProjectTask {
   assigneeName: string | null
   createdById: number
   createdByName: string
+  startDate: string | null
   deadline: string | null
+  progress: number
   submittedAt: string | null
   fileName: string | null
   fileUrl: string | null
@@ -218,7 +220,27 @@ export interface CreateTaskRequest {
   title: string
   description?: string
   assigneeId?: number
+  startDate?: string
   deadline?: string
+}
+
+export interface UpdateTaskRequest {
+  title?: string
+  description?: string
+  assigneeId?: number
+  startDate?: string
+  deadline?: string
+  progress?: number
+}
+
+export interface GanttTask {
+  id: string
+  name: string
+  start: string
+  end: string
+  progress: number
+  dependencies?: string
+  custom_class?: string
 }
 
 export interface PeerReviewRequest {

@@ -203,6 +203,7 @@ public class GroupServiceImpl implements GroupService {
                 .createdBy(creator)
                 .title(request.getTitle())
                 .description(request.getDescription())
+                .startDate(request.getStartDate())
                 .deadline(request.getDeadline())
                 .build();
         projectTaskRepository.save(task);
@@ -252,6 +253,62 @@ public class GroupServiceImpl implements GroupService {
                 .orElseThrow(() -> new CustomException(ErrorCode.TASK_NOT_FOUND));
         assertLeader(task.getGroup(), getUser(userId));
         task.updateStatus(request.getStatus());
+        return new TaskResponse(task);
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse updateTask(Long taskId, Long userId, UpdateTaskRequest request) {
+        ProjectTask task = projectTaskRepository.findById(taskId)
+                .orElseThrow(() -> new CustomException(ErrorCode.TASK_NOT_FOUND));
+        User user = getUser(userId);
+        assertMember(task.getGroup(), user);
+
+        User assignee = null;
+        if (request.getAssigneeId() != null) {
+            assignee = getUser(request.getAssigneeId());
+        }
+
+        task.update(
+                request.getTitle(),
+                request.getDescription(),
+                assignee,
+                request.getStartDate(),
+                request.getDeadline(),
+                request.getProgress()
+        );
+        return new TaskResponse(task);
+    }
+
+    @Override
+    @Transactional
+    public void deleteTask(Long taskId, Long userId) {
+        ProjectTask task = projectTaskRepository.findById(taskId)
+                .orElseThrow(() -> new CustomException(ErrorCode.TASK_NOT_FOUND));
+        User user = getUser(userId);
+        assertMember(task.getGroup(), user);
+        projectTaskRepository.delete(task);
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse updateTaskProgress(Long taskId, Long userId, Integer progress) {
+        ProjectTask task = projectTaskRepository.findById(taskId)
+                .orElseThrow(() -> new CustomException(ErrorCode.TASK_NOT_FOUND));
+        User user = getUser(userId);
+        assertMember(task.getGroup(), user);
+        task.updateProgress(progress);
+        return new TaskResponse(task);
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse updateTaskDates(Long taskId, Long userId, java.time.LocalDateTime startDate, java.time.LocalDateTime deadline) {
+        ProjectTask task = projectTaskRepository.findById(taskId)
+                .orElseThrow(() -> new CustomException(ErrorCode.TASK_NOT_FOUND));
+        User user = getUser(userId);
+        assertMember(task.getGroup(), user);
+        task.updateDates(startDate, deadline);
         return new TaskResponse(task);
     }
 

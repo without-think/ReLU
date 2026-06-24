@@ -39,7 +39,13 @@ public class ProjectTask extends BaseTimeEntity {
     private String description;
 
     @Column
+    private LocalDateTime startDate;
+
+    @Column
     private LocalDateTime deadline;
+
+    @Column
+    private Integer progress = 0;
 
     @Column
     private LocalDateTime submittedAt;
@@ -55,13 +61,15 @@ public class ProjectTask extends BaseTimeEntity {
     private TaskStatus status = TaskStatus.PENDING;
 
     @Builder
-    public ProjectTask(Group group, User assignee, User createdBy, String title, String description, LocalDateTime deadline) {
+    public ProjectTask(Group group, User assignee, User createdBy, String title, String description, LocalDateTime startDate, LocalDateTime deadline) {
         this.group = group;
         this.assignee = assignee;
         this.createdBy = createdBy;
         this.title = title;
         this.description = description;
+        this.startDate = startDate;
         this.deadline = deadline;
+        this.progress = 0;
         this.status = TaskStatus.PENDING;
     }
 
@@ -76,5 +84,25 @@ public class ProjectTask extends BaseTimeEntity {
 
     public void updateStatus(TaskStatus status) {
         this.status = status;
+    }
+
+    public void update(String title, String description, User assignee, LocalDateTime startDate, LocalDateTime deadline, Integer progress) {
+        this.title = title;
+        this.description = description;
+        this.assignee = assignee;
+        this.startDate = startDate;
+        this.deadline = deadline;
+        if (progress != null) {
+            this.progress = Math.max(0, Math.min(100, progress));
+        }
+    }
+
+    public void updateProgress(Integer progress) {
+        this.progress = Math.max(0, Math.min(100, progress));
+    }
+
+    public void updateDates(LocalDateTime startDate, LocalDateTime deadline) {
+        this.startDate = startDate;
+        this.deadline = deadline;
     }
 }
