@@ -2,16 +2,42 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
-import { BookOpen, CreditCard, GraduationCap, MessageSquare, Users } from 'lucide-react'
+import { BookOpen, CheckCircle2, CreditCard, GraduationCap, MessageSquare, Users } from 'lucide-react'
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer,
 } from 'recharts'
 import type { ReactNode } from 'react'
-import type { GroupSummary, MemberScore, PeerReviewSummary, UserInfo } from '@/types'
+import type { GroupDetail, GroupSummary, MemberRole, MemberScore, PeerReviewSummary, UserInfo } from '@/types'
 
 interface ReviewSummaryWithGroup extends PeerReviewSummary {
   groupId: number
   groupName: string
+}
+
+interface RadarAngleTickProps {
+  x?: number
+  y?: number
+  textAnchor?: 'start' | 'middle' | 'end' | 'inherit'
+  payload?: {
+    value?: string
+  }
+}
+
+interface CompletedProject {
+  id: number
+  teamName: string
+  courseName: string
+  role: MemberRole
+}
+
+const ROLE_LABELS: Record<MemberRole, string> = {
+  UNASSIGNED: '미배정',
+  LEADER: '팀장',
+  RESEARCHER: '자료조사',
+  PRESENTER: '발표',
+  BACKEND: '백엔드',
+  FRONTEND: '프론트',
+  AI: 'AI',
 }
 
 const metricDescriptions = [
@@ -41,6 +67,24 @@ function academicTerm(grade?: string | null) {
 function findMyScore(scores: MemberScore[] | undefined, userInfo?: UserInfo) {
   const names = [userInfo?.fullName, userInfo?.nickname].filter(Boolean)
   return scores?.find((score) => names.includes(score.name)) ?? null
+}
+
+function RadarAngleTick({ x = 0, y = 0, textAnchor = 'middle', payload }: RadarAngleTickProps) {
+  const value = payload?.value ?? ''
+  const contributionOffset = value === '기여도' ? -14 : 0
+
+  return (
+    <text
+      x={x}
+      y={y + contributionOffset}
+      textAnchor={textAnchor}
+      fill="#7a7169"
+      fontSize={13}
+      dominantBaseline="central"
+    >
+      {value}
+    </text>
+  )
 }
 
 export default function ProfilePage() {
@@ -80,6 +124,53 @@ export default function ProfilePage() {
       return summaries.filter((summary): summary is ReviewSummaryWithGroup => !!summary)
     },
     enabled: myGroups.length > 0,
+  })
+
+  const completedGroups = useMemo(() => {
+    const now = Date.now()
+    return myGroups
+      .filter((group) => group.projectDeadline && new Date(group.projectDeadline).getTime() < now)
+      .sort((a, b) => {
+        const aTime = a.projectDeadline ? new Date(a.projectDeadline).getTime() : 0
+        const bTime = b.projectDeadline ? new Date(b.projectDeadline).getTime() : 0
+        return bTime - aTime
+      })
+      .slice(0, 2)
+  }, [myGroups])
+
+  const { data: completedProjects = [] } = useQuery<CompletedProject[]>({
+    queryKey: ['profile-completed-projects', completedGroups.map((group) => group.id), userInfo?.student_id, userInfo?.studentId, userInfo?.fullName],
+    queryFn: async () => {
+      const details = await Promise.all(
+        completedGroups.map(async (group) => {
+          try {
+            const detail = await api.getGroupDetail(group.id)
+            return detail
+          } catch {
+            return null
+          }
+        })
+      )
+
+      const studentId = userInfo?.student_id || userInfo?.studentId
+      const names = [userInfo?.fullName, userInfo?.nickname].filter(Boolean)
+
+      return details
+        .filter((detail): detail is GroupDetail => !!detail)
+        .map((detail) => {
+          const me = detail.members.find((member) => (
+            (studentId && member.studentId === studentId) || names.includes(member.name)
+          ))
+
+          return {
+            id: detail.id,
+            teamName: detail.name,
+            courseName: detail.courseName || '과목 정보 없음',
+            role: me?.role ?? 'UNASSIGNED',
+          }
+        })
+    },
+    enabled: completedGroups.length > 0 && !!userInfo,
   })
 
   const myReviewScores = useMemo(() => {
@@ -147,38 +238,68 @@ export default function ProfilePage() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-6 items-start">
-        <section className="card">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-12 h-12 rounded-2xl bg-[#4a8768]/10 flex items-center justify-center shrink-0">
-              <GraduationCap className="w-6 h-6 text-[#4a8768]" />
+        <div className="space-y-6">
+          <section className="card">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-12 h-12 rounded-2xl bg-[#4a8768]/10 flex items-center justify-center shrink-0">
+                <GraduationCap className="w-6 h-6 text-[#4a8768]" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-xl font-extrabold text-[#25231f] truncate">{displayName}</h2>
+                <p className="text-sm text-[#b0a8a0]">세종대 포털 인증 정보</p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <h2 className="text-xl font-extrabold text-[#25231f] truncate">{displayName}</h2>
-              <p className="text-sm text-[#b0a8a0]">세종대 포털 인증 정보</p>
-            </div>
-          </div>
 
-          <div className="space-y-3">
-            <InfoCard
-              icon={<CreditCard className="w-5 h-5 text-[#31465d]" />}
-              label="학번"
-              value={studentId}
-              tone="navy"
-            />
-            <InfoCard
-              icon={<BookOpen className="w-5 h-5 text-[#4a8768]" />}
-              label="학과"
-              value={userInfo?.major || '-'}
-              tone="sage"
-            />
-            <InfoCard
-              icon={<GraduationCap className="w-5 h-5 text-[#a8793d]" />}
-              label="학기"
-              value={academicTerm(userInfo?.grade)}
-              tone="gold"
-            />
-          </div>
-        </section>
+            <div className="space-y-3">
+              <InfoCard
+                icon={<CreditCard className="w-5 h-5 text-[#31465d]" />}
+                label="학번"
+                value={studentId}
+                tone="navy"
+              />
+              <InfoCard
+                icon={<BookOpen className="w-5 h-5 text-[#4a8768]" />}
+                label="학과"
+                value={userInfo?.major || '-'}
+                tone="sage"
+              />
+              <InfoCard
+                icon={<GraduationCap className="w-5 h-5 text-[#a8793d]" />}
+                label="학기"
+                value={academicTerm(userInfo?.grade)}
+                tone="gold"
+              />
+            </div>
+          </section>
+
+          <section className="card">
+            <h2 className="font-bold text-[#25231f] mb-4 flex items-center gap-2">
+              <span className="w-8 h-8 rounded-xl bg-[#4a8768]/10 flex items-center justify-center">
+                <CheckCircle2 className="w-4 h-4 text-[#4a8768]" />
+              </span>
+              완료한 프로젝트
+            </h2>
+
+            {completedProjects.length === 0 ? (
+              <p className="text-sm text-[#b0a8a0] text-center py-6">완료한 프로젝트가 없습니다</p>
+            ) : (
+              <div className="space-y-3">
+                {completedProjects.map((project) => (
+                  <div key={project.id} className="p-4 rounded-2xl bg-white/70 border border-[#e7e0d7]">
+                    <p className="text-xs font-bold text-[#4a8768] truncate">{project.courseName}</p>
+                    <p className="text-sm font-extrabold text-[#25231f] truncate mt-1">{project.teamName}</p>
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <span className="text-xs text-[#b0a8a0]">담당 역할</span>
+                      <span className="badge bg-[#31465d]/10 text-[#31465d]">
+                        {ROLE_LABELS[project.role]}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
 
         <section className="card relative">
           <div className="flex items-start justify-between gap-4 mb-4">
@@ -212,12 +333,12 @@ export default function ProfilePage() {
             </div>
           )}
 
-          <div className="h-[360px] lg:h-[420px]">
+          <div className="h-[420px] lg:h-[500px]">
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={radarData} margin={{ top: 32, right: 56, bottom: 28, left: 56 }}>
+              <RadarChart data={radarData} margin={{ top: 48, right: 88, bottom: 46, left: 88 }} outerRadius="96%">
                 <PolarGrid stroke="#e7e0d7" />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 13, fill: '#7a7169' }} />
-                <PolarRadiusAxis angle={90} domain={[0, 5]} tick={{ fontSize: 11, fill: '#b0a8a0' }} tickCount={6} />
+                <PolarAngleAxis dataKey="subject" tick={<RadarAngleTick />} tickSize={18} />
+                <PolarRadiusAxis angle={90} domain={[0, 5]} tick={{ fontSize: 13, fill: '#b0a8a0' }} tickCount={6} />
                 <Radar dataKey="value" fill="#4a8768" fillOpacity={0.42} stroke="#4a8768" strokeWidth={2.5} />
               </RadarChart>
             </ResponsiveContainer>
