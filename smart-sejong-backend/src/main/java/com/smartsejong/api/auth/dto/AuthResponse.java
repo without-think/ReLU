@@ -20,5 +20,6 @@ public class AuthResponse {
         private String fullName;
         private String major;
         private String grade;
+        private String role;
     }
 }

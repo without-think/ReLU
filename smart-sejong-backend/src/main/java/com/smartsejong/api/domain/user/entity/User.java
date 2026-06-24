@@ -1,12 +1,8 @@
 package com.smartsejong.api.domain.user.entity;
 
 import com.smartsejong.api.common.entity.BaseTimeEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import com.smartsejong.api.common.enums.UserRole;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -34,12 +30,17 @@ public class User extends BaseTimeEntity {
     @Column
     private String grade;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private UserRole role = UserRole.STUDENT;
+
     @Builder
-    public User(String studentId, String fullName, String major, String grade) {
+    public User(String studentId, String fullName, String major, String grade, UserRole role) {
         this.studentId = studentId;
         this.fullName = fullName;
         this.major = major;
         this.grade = grade;
+        this.role = role != null ? role : UserRole.STUDENT;
     }
 
     public void updateInfo(String fullName, String major) {

@@ -36,6 +36,7 @@ public enum ErrorCode {
     // Ecampus
     ECAMPUS_AUTH_FAILED(HttpStatus.UNAUTHORIZED, "E001", "e캠퍼스 로그인에 실패했습니다."),
     ECAMPUS_SCRAPE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "E002", "e캠퍼스 데이터 조회에 실패했습니다."),
+    ECAMPUS_FETCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "E003", "e캠퍼스 수강 과목 조회에 실패했습니다."),
 
     // Common
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C001", "서버 내부 오류가 발생했습니다."),
