@@ -147,6 +147,42 @@ public class GroupController {
         return CommonResponse.success(groupService.updateTaskStatus(taskId, userDetails.getUserId(), request));
     }
 
+    @PutMapping("/tasks/{taskId}")
+    public CommonResponse<TaskResponse> updateTask(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long taskId,
+            @RequestBody UpdateTaskRequest request) {
+        return CommonResponse.success(groupService.updateTask(taskId, userDetails.getUserId(), request));
+    }
+
+    @DeleteMapping("/tasks/{taskId}")
+    public CommonResponse<Void> deleteTask(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long taskId) {
+        groupService.deleteTask(taskId, userDetails.getUserId());
+        return CommonResponse.success("과제가 삭제되었습니다.", null);
+    }
+
+    @PatchMapping("/tasks/{taskId}/progress")
+    public CommonResponse<TaskResponse> updateTaskProgress(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long taskId,
+            @RequestBody java.util.Map<String, Integer> request) {
+        return CommonResponse.success(groupService.updateTaskProgress(taskId, userDetails.getUserId(), request.get("progress")));
+    }
+
+    @PatchMapping("/tasks/{taskId}/dates")
+    public CommonResponse<TaskResponse> updateTaskDates(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long taskId,
+            @RequestBody java.util.Map<String, java.time.LocalDateTime> request) {
+        return CommonResponse.success(groupService.updateTaskDates(
+                taskId, userDetails.getUserId(),
+                request.get("startDate"),
+                request.get("deadline")
+        ));
+    }
+
     // --- Peer Reviews ---
 
     @PostMapping("/{groupId}/reviews")
