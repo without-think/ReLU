@@ -7,10 +7,11 @@ import java.time.LocalDateTime;
 
 @Getter
 @NoArgsConstructor
-public class CreateTaskRequest {
+public class UpdateTaskRequest {
     private String title;
     private String description;
     private Long assigneeId;
     private LocalDateTime startDate;
     private LocalDateTime deadline;
+    private Integer progress;
 }

@@ -15,7 +15,9 @@ public class TaskResponse {
     private final String assigneeName;
     private final Long createdById;
     private final String createdByName;
+    private final LocalDateTime startDate;
     private final LocalDateTime deadline;
+    private final Integer progress;
     private final LocalDateTime submittedAt;
     private final String fileName;
     private final String fileUrl;
@@ -30,7 +32,9 @@ public class TaskResponse {
         this.assigneeName = task.getAssignee() != null ? task.getAssignee().getFullName() : null;
         this.createdById = task.getCreatedBy().getId();
         this.createdByName = task.getCreatedBy().getFullName();
+        this.startDate = task.getStartDate();
         this.deadline = task.getDeadline();
+        this.progress = task.getProgress() != null ? task.getProgress() : 0;
         this.submittedAt = task.getSubmittedAt();
         this.fileName = task.getFileName();
         this.fileUrl = task.getFileUrl();

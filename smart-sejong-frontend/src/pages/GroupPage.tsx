@@ -16,10 +16,11 @@ import {
 } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { TimetableGrid } from '@/components/timetable/TimetableGrid'
+import { GanttTab } from '@/components/group/GanttTab'
 import type {
   GroupSummary, GroupDetail, TeamMember, MemberRole, ProjectTask,
   TaskStatus, AvailabilitySlot, PeerReviewRequest,
-  EcampusCourse, Timetable,
+  EcampusCourse, Timetable, UpdateTaskRequest,
 } from '@/types'
 
 // ─── constants ───────────────────────────────────────────────────────────────
@@ -83,7 +84,7 @@ function tempColor(temp: number) {
 
 // ─── main page ────────────────────────────────────────────────────────────────
 
-type Tab = 'home' | 'timetable' | 'availability' | 'roles' | 'tasks' | 'review' | 'ecampus'
+type Tab = 'home' | 'timetable' | 'availability' | 'roles' | 'tasks' | 'gantt' | 'review' | 'ecampus'
 
 export default function GroupPage() {
   const queryClient = useQueryClient()
@@ -118,6 +119,7 @@ export default function GroupPage() {
     { id: 'availability', label: '가능 시간' },
     { id: 'roles', label: '역할 배분' },
     { id: 'tasks', label: '과제 관리' },
+    { id: 'gantt', label: '간트 차트' },
     { id: 'review', label: '동료 평가' },
     { id: 'ecampus', label: '과제 제출 이력' },
   ]
@@ -220,6 +222,9 @@ export default function GroupPage() {
               )}
               {activeTab === 'tasks' && (
                 <TasksTab groupId={selectedGroupId} members={groupDetail.members} />
+              )}
+              {activeTab === 'gantt' && (
+                <GanttTab groupId={selectedGroupId} members={groupDetail.members} />
               )}
               {activeTab === 'review' && (
                 <ReviewTab groupId={selectedGroupId} members={groupDetail.members} />
@@ -587,7 +592,10 @@ function RolesTab({ groupId, members, onRefresh }: {
 function TasksTab({ groupId, members }: { groupId: number; members: TeamMember[] }) {
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ title: '', description: '', assigneeId: '', deadline: '' })
+  const [editingTask, setEditingTask] = useState<ProjectTask | null>(null)
+  const [form, setForm] = useState({ title: '', description: '', assigneeId: '', startDate: '', deadline: '', progress: 0 })
+
+  const resetForm = () => setForm({ title: '', description: '', assigneeId: '', startDate: '', deadline: '', progress: 0 })
 
   const { data: tasks = [] } = useQuery<ProjectTask[]>({
     queryKey: ['tasks', groupId],
@@ -599,12 +607,33 @@ function TasksTab({ groupId, members }: { groupId: number; members: TeamMember[]
       title: form.title,
       description: form.description || undefined,
       assigneeId: form.assigneeId ? Number(form.assigneeId) : undefined,
+      startDate: form.startDate || undefined,
       deadline: form.deadline || undefined,
     }),
     onSuccess: () => {
       toast.success('과제가 생성되었습니다.')
       setShowForm(false)
-      setForm({ title: '', description: '', assigneeId: '', deadline: '' })
+      resetForm()
+      queryClient.invalidateQueries({ queryKey: ['tasks', groupId] })
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ taskId, ...request }: { taskId: number } & UpdateTaskRequest) =>
+      api.updateTask(taskId, request),
+    onSuccess: () => {
+      toast.success('과제가 수정되었습니다.')
+      setEditingTask(null)
+      resetForm()
+      queryClient.invalidateQueries({ queryKey: ['tasks', groupId] })
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (taskId: number) => api.deleteTask(taskId),
+    onSuccess: () => {
+      toast.success('과제가 삭제되었습니다.')
+      setEditingTask(null)
       queryClient.invalidateQueries({ queryKey: ['tasks', groupId] })
     },
   })
@@ -620,6 +649,41 @@ function TasksTab({ groupId, members }: { groupId: number; members: TeamMember[]
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['tasks', groupId] }) },
   })
 
+  const progressMutation = useMutation({
+    mutationFn: ({ taskId, progress }: { taskId: number; progress: number }) =>
+      api.updateTaskProgress(taskId, progress),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['tasks', groupId] }) },
+  })
+
+  const handleEdit = (task: ProjectTask) => {
+    setEditingTask(task)
+    setForm({
+      title: task.title,
+      description: task.description || '',
+      assigneeId: task.assigneeId ? String(task.assigneeId) : '',
+      startDate: task.startDate ? task.startDate.substring(0, 16) : '',
+      deadline: task.deadline ? task.deadline.substring(0, 16) : '',
+      progress: task.progress || 0,
+    })
+    setShowForm(false)
+  }
+
+  const handleSubmit = () => {
+    if (editingTask) {
+      updateMutation.mutate({
+        taskId: editingTask.id,
+        title: form.title,
+        description: form.description || undefined,
+        assigneeId: form.assigneeId ? Number(form.assigneeId) : undefined,
+        startDate: form.startDate || undefined,
+        deadline: form.deadline || undefined,
+        progress: form.progress,
+      })
+    } else {
+      createMutation.mutate()
+    }
+  }
+
   const pending = tasks.filter(t => t.status === 'PENDING' || t.status === 'SUBMITTED' || t.status === 'LATE')
   const done = tasks.filter(t => t.status === 'APPROVED' || t.status === 'REJECTED')
 
@@ -627,13 +691,16 @@ function TasksTab({ groupId, members }: { groupId: number; members: TeamMember[]
     <div className="card space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-bold text-[#25231f]">과제 관리</h3>
-        <button onClick={() => setShowForm(v => !v)} className="btn-primary text-sm flex items-center gap-1">
+        <button onClick={() => { setShowForm(v => !v); setEditingTask(null); resetForm() }} className="btn-primary text-sm flex items-center gap-1">
           <Plus className="w-4 h-4" /><span>과제 추가</span>
         </button>
       </div>
 
-      {showForm && (
+      {(showForm || editingTask) && (
         <div className="border border-dashed border-[#4a8768]/40 rounded-2xl p-4 space-y-3 bg-[#4a8768]/6">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold text-[#25231f]">{editingTask ? '과제 수정' : '새 과제 추가'}</span>
+          </div>
           <input className="input" placeholder="과제 제목" value={form.title}
             onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
           <textarea className="input resize-none" rows={2} placeholder="설명 (선택)" value={form.description}
@@ -642,13 +709,41 @@ function TasksTab({ groupId, members }: { groupId: number; members: TeamMember[]
             <option value="">담당자 선택 (선택)</option>
             {members.map(m => <option key={m.userId} value={String(m.userId)}>{m.name}</option>)}
           </select>
-          <input type="datetime-local" className="input" value={form.deadline}
-            onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-[#7a7169] block mb-1">시작일</label>
+              <input type="datetime-local" className="input" value={form.startDate}
+                onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs text-[#7a7169] block mb-1">마감일</label>
+              <input type="datetime-local" className="input" value={form.deadline}
+                onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} />
+            </div>
+          </div>
+          {editingTask && (
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-[#7a7169]">진행률</span>
+                <span className="font-bold text-[#4a8768]">{form.progress}%</span>
+              </div>
+              <input
+                type="range" min={0} max={100} value={form.progress}
+                onChange={e => setForm(f => ({ ...f, progress: Number(e.target.value) }))}
+                className="w-full accent-[#4a8768]"
+              />
+            </div>
+          )}
           <div className="flex gap-2">
-            <button onClick={() => createMutation.mutate()} disabled={!form.title || createMutation.isPending} className="btn-primary text-sm flex-1">
-              {createMutation.isPending ? '생성 중...' : '생성'}
+            <button onClick={handleSubmit} disabled={!form.title || createMutation.isPending || updateMutation.isPending} className="btn-primary text-sm flex-1">
+              {createMutation.isPending || updateMutation.isPending ? '저장 중...' : editingTask ? '수정' : '생성'}
             </button>
-            <button onClick={() => setShowForm(false)} className="btn-secondary text-sm">취소</button>
+            {editingTask && (
+              <button onClick={() => deleteMutation.mutate(editingTask.id)} disabled={deleteMutation.isPending} className="btn-secondary text-sm text-[#6f4141]">
+                {deleteMutation.isPending ? '삭제 중...' : '삭제'}
+              </button>
+            )}
+            <button onClick={() => { setShowForm(false); setEditingTask(null); resetForm() }} className="btn-secondary text-sm">취소</button>
           </div>
         </div>
       )}
@@ -662,6 +757,9 @@ function TasksTab({ groupId, members }: { groupId: number; members: TeamMember[]
                 onSubmit={(file) => submitMutation.mutate({ taskId: t.id, file })}
                 onApprove={() => statusMutation.mutate({ taskId: t.id, status: 'APPROVED' })}
                 onReject={() => statusMutation.mutate({ taskId: t.id, status: 'REJECTED' })}
+                onEdit={() => handleEdit(t)}
+                onDelete={() => deleteMutation.mutate(t.id)}
+                onProgressChange={(progress) => progressMutation.mutate({ taskId: t.id, progress })}
               />
             ))}
           </div>
@@ -673,7 +771,7 @@ function TasksTab({ groupId, members }: { groupId: number; members: TeamMember[]
           <p className="text-xs text-[#b0a8a0] uppercase tracking-wider mb-2 font-bold">완료</p>
           <div className="space-y-2 opacity-60">
             {done.map(t => (
-              <TaskRow key={t.id} task={t} onSubmit={(_f) => {}} onApprove={() => {}} onReject={() => {}} />
+              <TaskRow key={t.id} task={t} onSubmit={(_f) => {}} onApprove={() => {}} onReject={() => {}} onEdit={() => handleEdit(t)} onDelete={() => deleteMutation.mutate(t.id)} onProgressChange={() => {}} />
             ))}
           </div>
         </div>
@@ -689,11 +787,13 @@ function TasksTab({ groupId, members }: { groupId: number; members: TeamMember[]
   )
 }
 
-function TaskRow({ task, onSubmit, onApprove, onReject }: {
-  task: ProjectTask; onSubmit: (file?: File) => void; onApprove: () => void; onReject: () => void
+function TaskRow({ task, onSubmit, onApprove, onReject, onEdit, onDelete, onProgressChange }: {
+  task: ProjectTask; onSubmit: (file?: File) => void; onApprove: () => void; onReject: () => void; onEdit: () => void; onDelete: () => void; onProgressChange: (progress: number) => void
 }) {
   const [selectedFile, setSelectedFile] = useState<File | undefined>()
   const [showFileInput, setShowFileInput] = useState(false)
+  const [showProgressSlider, setShowProgressSlider] = useState(false)
+  const [localProgress, setLocalProgress] = useState(task.progress || 0)
   const deadlinePassed = task.deadline && isPast(parseISO(task.deadline))
   const hoursLeft = task.deadline ? differenceInHours(parseISO(task.deadline), new Date()) : null
   const urgent = hoursLeft !== null && hoursLeft < 24 && hoursLeft > 0
@@ -708,10 +808,14 @@ function TaskRow({ task, onSubmit, onApprove, onReject }: {
             <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${TASK_STATUS_COLORS[task.status]}`}>
               {TASK_STATUS_LABELS[task.status]}
             </span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-[#4a8768]/12 text-[#4a8768] font-bold">
+              {task.progress || 0}%
+            </span>
             {urgent && <AlertTriangle className="w-3.5 h-3.5 text-[#a8793d] flex-shrink-0" />}
           </div>
           <div className="flex gap-3 mt-1 text-xs text-[#b0a8a0] flex-wrap">
             {task.assigneeName && <span>담당: {task.assigneeName}</span>}
+            {task.startDate && <span>시작: {format(parseISO(task.startDate), 'MM/dd HH:mm')}</span>}
             {task.deadline && (
               <span className={deadlinePassed && task.status === 'PENDING' ? 'text-[#6f4141]' : ''}>
                 마감: {format(parseISO(task.deadline), 'MM/dd HH:mm')}
@@ -733,21 +837,58 @@ function TaskRow({ task, onSubmit, onApprove, onReject }: {
         </div>
         <div className="flex gap-1 flex-shrink-0">
           {task.status === 'PENDING' && (
-            <button
-              onClick={() => setShowFileInput(v => !v)}
-              className="btn-primary text-xs py-1 px-3"
-            >
-              제출
-            </button>
+            <>
+              <button onClick={onEdit} className="text-xs py-1 px-2 text-[#7a7169] hover:text-[#25231f]" title="수정">
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={onDelete} className="text-xs py-1 px-2 text-[#b0a8a0] hover:text-[#6f4141]" title="삭제">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setShowProgressSlider(v => !v)}
+                className="text-xs py-1 px-3 bg-[#31465d]/10 text-[#31465d] rounded-full font-bold hover:bg-[#31465d]/20"
+              >
+                진행률
+              </button>
+              <button
+                onClick={() => setShowFileInput(v => !v)}
+                className="btn-primary text-xs py-1 px-3"
+              >
+                제출
+              </button>
+            </>
           )}
           {(task.status === 'SUBMITTED' || task.status === 'LATE') && (
             <>
+              <button onClick={onEdit} className="text-xs py-1 px-2 text-[#7a7169] hover:text-[#25231f]" title="수정">
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
               <button onClick={onApprove} className="text-xs py-1 px-3 bg-[#4a8768]/12 text-[#4a8768] rounded-full font-bold hover:bg-[#4a8768]/20">승인</button>
               <button onClick={onReject} className="text-xs py-1 px-3 bg-[#f2eee8] text-[#7a7169] rounded-full font-bold hover:bg-[#e7e0d7]">반려</button>
             </>
           )}
         </div>
       </div>
+
+      {/* Progress slider */}
+      {showProgressSlider && task.status === 'PENDING' && (
+        <div className="flex items-center gap-3 pt-2 border-t border-[#e7e0d7]">
+          <span className="text-xs text-[#7a7169]">진행률</span>
+          <input
+            type="range" min={0} max={100} value={localProgress}
+            onChange={e => setLocalProgress(Number(e.target.value))}
+            className="flex-1 accent-[#4a8768]"
+          />
+          <span className="text-xs font-bold text-[#4a8768] w-10">{localProgress}%</span>
+          <button
+            onClick={() => { onProgressChange(localProgress); setShowProgressSlider(false) }}
+            className="btn-primary text-xs py-1 px-3"
+          >
+            저장
+          </button>
+          <button onClick={() => { setShowProgressSlider(false); setLocalProgress(task.progress || 0) }} className="text-xs text-[#b0a8a0] hover:text-[#7a7169]">취소</button>
+        </div>
+      )}
 
       {showFileInput && task.status === 'PENDING' && (
         <div className="flex items-center gap-2 pt-2 border-t border-[#e7e0d7]">

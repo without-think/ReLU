@@ -23,6 +23,10 @@ public interface GroupService {
     List<TaskResponse> getTasks(Long groupId);
     TaskResponse submitTask(Long taskId, Long userId, org.springframework.web.multipart.MultipartFile file);
     TaskResponse updateTaskStatus(Long taskId, Long userId, UpdateTaskStatusRequest request);
+    TaskResponse updateTask(Long taskId, Long userId, UpdateTaskRequest request);
+    void deleteTask(Long taskId, Long userId);
+    TaskResponse updateTaskProgress(Long taskId, Long userId, Integer progress);
+    TaskResponse updateTaskDates(Long taskId, Long userId, java.time.LocalDateTime startDate, java.time.LocalDateTime deadline);
 
     void submitPeerReview(Long groupId, Long userId, SubmitPeerReviewRequest request);
     PeerReviewSummaryResponse getPeerReviewSummary(Long groupId);

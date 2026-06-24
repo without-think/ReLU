@@ -26,6 +26,7 @@ import type {
   AvailabilityResponse,
   ProjectTask,
   CreateTaskRequest,
+  UpdateTaskRequest,
   TaskStatus,
   MemberRole,
   PeerReviewRequest,
@@ -464,6 +465,34 @@ class ApiClient {
     const { data } = await this.client.patch<{ status: number; data: ProjectTask }>(
       `/api/groups/tasks/${taskId}/status`,
       { status }
+    )
+    return data.data
+  }
+
+  async updateTask(taskId: number, request: UpdateTaskRequest): Promise<ProjectTask> {
+    const { data } = await this.client.put<{ status: number; data: ProjectTask }>(
+      `/api/groups/tasks/${taskId}`,
+      request
+    )
+    return data.data
+  }
+
+  async deleteTask(taskId: number): Promise<void> {
+    await this.client.delete(`/api/groups/tasks/${taskId}`)
+  }
+
+  async updateTaskProgress(taskId: number, progress: number): Promise<ProjectTask> {
+    const { data } = await this.client.patch<{ status: number; data: ProjectTask }>(
+      `/api/groups/tasks/${taskId}/progress`,
+      { progress }
+    )
+    return data.data
+  }
+
+  async updateTaskDates(taskId: number, startDate: string, deadline: string): Promise<ProjectTask> {
+    const { data } = await this.client.patch<{ status: number; data: ProjectTask }>(
+      `/api/groups/tasks/${taskId}/dates`,
+      { startDate, deadline }
     )
     return data.data
   }
