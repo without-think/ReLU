@@ -49,6 +49,11 @@ function formatSectionTime(s: { startTime?: string; endTime?: string }): string 
 
 class ApiClient {
   private client: AxiosInstance
+  private isRefreshing = false
+  private failedQueue: Array<{
+    resolve: (token: string) => void
+    reject: (error: unknown) => void
+  }> = []
 
   constructor() {
     this.client = axios.create({
@@ -70,33 +75,76 @@ class ApiClient {
       (error) => Promise.reject(error)
     )
 
-    // Response interceptor - Handle errors
+    // Response interceptor - Handle errors with token refresh
     this.client.interceptors.response.use(
       (response) => response,
-      (error) => {
+      async (error) => {
+        const originalRequest = error.config
+
         // 네트워크 오류나 서버가 응답하지 않는 경우
         if (!error.response) {
-          // 개발 모드에서는 콘솔에만 표시 (흰 화면 방지)
           if (import.meta.env.DEV) {
             console.warn('API 요청 실패:', error.message)
           }
           return Promise.reject(error)
         }
-        
-        if (error.response?.status === 401) {
-          localStorage.removeItem('token')
-          // 개발 모드에서는 리다이렉트 안 함
-          if (!import.meta.env.DEV) {
-            window.location.href = '/login'
-            toast.error('인증이 만료되었습니다. 다시 로그인해주세요.')
+
+        // 401 에러이고, 재시도하지 않은 요청이며, refresh 요청이 아닌 경우
+        if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/auth/refresh')) {
+          if (this.isRefreshing) {
+            // 이미 refresh 중이면 큐에 추가
+            return new Promise((resolve, reject) => {
+              this.failedQueue.push({ resolve, reject })
+            }).then((token) => {
+              originalRequest.headers.Authorization = `Bearer ${token}`
+              return this.client(originalRequest)
+            })
           }
-        } else if (error.response?.status >= 500) {
-          // 개발 모드에서는 토스트 안 띄움 (너무 많은 알림 방지)
+
+          originalRequest._retry = true
+          this.isRefreshing = true
+
+          const refreshToken = localStorage.getItem('refreshToken')
+          if (!refreshToken) {
+            this.handleLogout()
+            return Promise.reject(error)
+          }
+
+          try {
+            const { data } = await axios.post<{ status: number; data: { accessToken: string; refreshToken?: string } }>(
+              `${API_BASE_URL}/api/auth/refresh`,
+              { refreshToken }
+            )
+
+            const newAccessToken = data.data.accessToken
+            const newRefreshToken = data.data.refreshToken
+
+            localStorage.setItem('token', newAccessToken)
+            if (newRefreshToken) {
+              localStorage.setItem('refreshToken', newRefreshToken)
+            }
+
+            // 대기 중인 요청들 처리
+            this.failedQueue.forEach(({ resolve }) => resolve(newAccessToken))
+            this.failedQueue = []
+
+            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
+            return this.client(originalRequest)
+          } catch (refreshError) {
+            this.failedQueue.forEach(({ reject }) => reject(refreshError))
+            this.failedQueue = []
+            this.handleLogout()
+            return Promise.reject(refreshError)
+          } finally {
+            this.isRefreshing = false
+          }
+        }
+
+        if (error.response?.status >= 500) {
           if (!import.meta.env.DEV) {
             toast.error('서버 오류가 발생했습니다.')
           }
-        } else if (error.response?.data?.message) {
-          // 개발 모드에서는 토스트 안 띄움
+        } else if (error.response?.data?.message && error.response?.status !== 401) {
           if (!import.meta.env.DEV) {
             toast.error(error.response.data.message)
           }
@@ -104,6 +152,14 @@ class ApiClient {
         return Promise.reject(error)
       }
     )
+  }
+
+  private handleLogout() {
+    localStorage.removeItem('token')
+    localStorage.removeItem('refreshToken')
+    localStorage.removeItem('user')
+    window.location.href = '/login'
+    toast.error('인증이 만료되었습니다. 다시 로그인해주세요.')
   }
 
   // Auth APIs
