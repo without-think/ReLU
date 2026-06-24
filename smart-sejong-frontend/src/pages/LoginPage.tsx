@@ -37,6 +37,7 @@ export default function LoginPage() {
           studentId: response.user.studentId,
           major: response.user.major,
           grade: response.user.grade,
+          role: response.user.role,
           is_verified: true,
           profile_image: undefined,
         })

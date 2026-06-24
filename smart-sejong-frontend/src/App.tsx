@@ -4,12 +4,19 @@ import { useAuthStore } from './store/authStore'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
+import ProfessorDashboardPage from './pages/ProfessorDashboardPage'
 import GroupPage from './pages/GroupPage'
 import ProfilePage from './pages/ProfilePage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />
+}
+
+function DashboardRouter() {
+  const user = useAuthStore((state) => state.user)
+  const isProfessor = user?.role === 'PROFESSOR' || user?.role === 'ADMIN'
+  return isProfessor ? <ProfessorDashboardPage /> : <DashboardPage />
 }
 
 function App() {
@@ -47,7 +54,7 @@ function App() {
             </PrivateRoute>
           }
         >
-          <Route index element={<DashboardPage />} />
+          <Route index element={<DashboardRouter />} />
           <Route path="group" element={<GroupPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>

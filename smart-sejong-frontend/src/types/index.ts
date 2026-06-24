@@ -6,12 +6,15 @@ export interface AuthResponse {
   user: AuthUserInfo
 }
 
+export type UserRole = 'STUDENT' | 'PROFESSOR' | 'ADMIN'
+
 export interface AuthUserInfo {
   id: number
   studentId: string
   fullName?: string
   major?: string
   grade?: string
+  role?: UserRole
 }
 
 export interface UserInfo {
@@ -21,6 +24,7 @@ export interface UserInfo {
   studentId?: string
   major?: string
   grade?: string
+  role?: UserRole
   is_verified: boolean
   profile_image?: string
 }
