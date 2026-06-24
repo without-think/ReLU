@@ -45,6 +45,7 @@ export function GanttTab({ groupId, members }: GanttTabProps) {
       setShowAddForm(false)
       resetForm()
       queryClient.invalidateQueries({ queryKey: ['tasks', groupId] })
+      queryClient.invalidateQueries({ queryKey: ['all-tasks'] })
     },
   })
 
@@ -56,6 +57,7 @@ export function GanttTab({ groupId, members }: GanttTabProps) {
       setEditingTask(null)
       resetForm()
       queryClient.invalidateQueries({ queryKey: ['tasks', groupId] })
+      queryClient.invalidateQueries({ queryKey: ['all-tasks'] })
     },
   })
 
@@ -65,6 +67,7 @@ export function GanttTab({ groupId, members }: GanttTabProps) {
       toast.success('과제가 삭제되었습니다.')
       setEditingTask(null)
       queryClient.invalidateQueries({ queryKey: ['tasks', groupId] })
+      queryClient.invalidateQueries({ queryKey: ['all-tasks'] })
     },
   })
 
@@ -73,6 +76,7 @@ export function GanttTab({ groupId, members }: GanttTabProps) {
       api.updateTaskDates(taskId, startDate, deadline),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks', groupId] })
+      queryClient.invalidateQueries({ queryKey: ['all-tasks'] })
     },
   })
 
@@ -81,6 +85,7 @@ export function GanttTab({ groupId, members }: GanttTabProps) {
       api.updateTaskProgress(taskId, progress),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks', groupId] })
+      queryClient.invalidateQueries({ queryKey: ['all-tasks'] })
     },
   })
 
