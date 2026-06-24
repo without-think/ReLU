@@ -18,6 +18,7 @@ import {
 import { ko } from 'date-fns/locale'
 import { TimetableGrid } from '@/components/timetable/TimetableGrid'
 import { GanttTab } from '@/components/group/GanttTab'
+import { ChatPanel } from '@/components/group/ChatPanel'
 import type {
   GroupSummary, GroupDetail, TeamMember, MemberRole, ProjectTask,
   TaskStatus, AvailabilitySlot, PeerReviewRequest,
@@ -85,7 +86,7 @@ function tempColor(temp: number) {
 
 // ─── main page ────────────────────────────────────────────────────────────────
 
-type Tab = 'home' | 'timetable' | 'availability' | 'roles' | 'tasks' | 'gantt' | 'review' | 'ecampus' | 'ai'
+type Tab = 'home' | 'timetable' | 'availability' | 'roles' | 'tasks' | 'gantt' | 'review' | 'ecampus' | 'ai' | 'chat'
 type TeamView = 'mine' | 'find'
 
 interface GroupRouteState {
@@ -244,6 +245,7 @@ export default function GroupPage() {
 
   const allTabs: { id: Tab; label: string }[] = [
     { id: 'home', label: '팀 홈' },
+    { id: 'chat', label: '채팅' },
     { id: 'availability', label: '가능 시간' },
     { id: 'roles', label: '역할 배분' },
     { id: 'review', label: '동료 평가' },
@@ -462,6 +464,9 @@ export default function GroupPage() {
               )}
               {activeTab === 'ai' && (
                 <AiAnalysisTab groupId={selectedGroupId} groupName={groupDetail.name} members={groupDetail.members} />
+              )}
+              {activeTab === 'chat' && (
+                <ChatPanel groupId={selectedGroupId} members={groupDetail.members} />
               )}
               {activeTab === 'ecampus' && (
                 activeGroupCourse ? (
@@ -1375,7 +1380,7 @@ function RolesTab({ group, onRefresh }: {
 
 // ─── TasksTab ─────────────────────────────────────────────────────────────────
 
-function TasksTab({ groupId, members }: { groupId: number; members: TeamMember[] }) {
+export function _TasksTab({ groupId, members }: { groupId: number; members: TeamMember[] }) {
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [editingTask, setEditingTask] = useState<ProjectTask | null>(null)
@@ -1997,7 +2002,7 @@ function Modal({ title, onClose, children }: {
 
 // ─── TimetableTab ────────────────────────────────────────────────────────────
 
-function TimetableTab() {
+export function _TimetableTab() {
   const queryClient = useQueryClient()
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [isCreating, setIsCreating] = useState(false)

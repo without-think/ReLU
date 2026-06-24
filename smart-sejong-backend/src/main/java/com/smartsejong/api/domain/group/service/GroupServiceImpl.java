@@ -26,6 +26,8 @@ public class GroupServiceImpl implements GroupService {
     private final AvailabilityRepository availabilityRepository;
     private final ProjectTaskRepository projectTaskRepository;
     private final PeerReviewRepository peerReviewRepository;
+    private final GroupMessageRepository groupMessageRepository;
+    private final MessageReadReceiptRepository messageReadReceiptRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
 
@@ -629,5 +631,106 @@ public class GroupServiceImpl implements GroupService {
         if (member.getRole() != MemberRole.LEADER) {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
+    }
+
+    // --- Chat ---
+
+    @Override
+    public List<MessageResponse> getMessages(Long groupId, Long userId, int page, int size) {
+        Group group = getGroup(groupId);
+        User user = getUser(userId);
+        assertMember(group, user);
+
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        List<MessageResponse> messages = groupMessageRepository.findByGroupIdOrderByCreatedAtDesc(groupId, pageable)
+                .getContent()
+                .stream()
+                .map(MessageResponse::new)
+                .collect(java.util.stream.Collectors.toList());
+
+        // DESC로 가져온 결과를 역순으로 뒤집어서 오래된 메시지가 위에, 최신 메시지가 아래에 오도록 함
+        java.util.Collections.reverse(messages);
+        return messages;
+    }
+
+    @Override
+    @Transactional
+    public MessageResponse sendMessage(Long groupId, Long userId, SendMessageRequest request) {
+        Group group = getGroup(groupId);
+        User user = getUser(userId);
+        assertMember(group, user);
+
+        // 답장 대상 메시지 조회
+        GroupMessage replyTo = null;
+        if (request.getReplyToId() != null) {
+            replyTo = groupMessageRepository.findById(request.getReplyToId())
+                    .orElse(null);
+        }
+
+        // 언급된 사용자 ID를 문자열로 변환
+        String mentionedUserIdsStr = null;
+        if (request.getMentionedUserIds() != null && !request.getMentionedUserIds().isEmpty()) {
+            mentionedUserIdsStr = request.getMentionedUserIds().stream()
+                    .map(String::valueOf)
+                    .collect(Collectors.joining(","));
+        }
+
+        GroupMessage message = GroupMessage.builder()
+                .group(group)
+                .sender(user)
+                .content(request.getContent())
+                .replyTo(replyTo)
+                .mentionedUserIds(mentionedUserIdsStr)
+                .build();
+        groupMessageRepository.save(message);
+
+        return new MessageResponse(message);
+    }
+
+    @Override
+    @Transactional
+    public void deleteMessage(Long messageId, Long userId) {
+        GroupMessage message = groupMessageRepository.findById(messageId)
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INPUT_VALUE));
+
+        User user = getUser(userId);
+
+        // 본인 메시지만 삭제 가능 (교수는 예외)
+        if (user.getRole() != com.smartsejong.api.common.enums.UserRole.PROFESSOR
+                && !message.getSender().getId().equals(userId)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        message.markDeleted();
+    }
+
+    @Override
+    @Transactional
+    public void markAsRead(Long groupId, Long userId, Long messageId) {
+        Group group = getGroup(groupId);
+        User user = getUser(userId);
+        assertMember(group, user);
+
+        MessageReadReceipt receipt = messageReadReceiptRepository
+                .findByGroupIdAndUserId(groupId, userId)
+                .orElseGet(() -> MessageReadReceipt.builder()
+                        .group(group)
+                        .user(user)
+                        .lastReadMessageId(messageId)
+                        .build());
+
+        receipt.updateLastReadMessageId(messageId);
+        messageReadReceiptRepository.save(receipt);
+    }
+
+    @Override
+    public ReadReceiptResponse getReadReceipts(Long groupId) {
+        List<Object[]> results = messageReadReceiptRepository.findReadStatusByGroupId(groupId);
+        Map<Long, Long> readStatus = results.stream()
+                .collect(Collectors.toMap(
+                        r -> (Long) r[0],
+                        r -> r[1] != null ? (Long) r[1] : 0L
+                ));
+        return new ReadReceiptResponse(readStatus);
     }
 }

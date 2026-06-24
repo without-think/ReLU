@@ -38,6 +38,9 @@ import type {
   EcampusRequest,
   UpdatePreferenceRequest,
   ProfessorSection,
+  GroupMessage,
+  SendMessageRequest,
+  ReadReceiptResponse,
 } from '@/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
@@ -664,6 +667,38 @@ class ApiClient {
       request
     )
     return data.data ?? []
+  }
+
+  // Chat APIs
+  async getMessages(groupId: number, page = 0, size = 50): Promise<GroupMessage[]> {
+    const { data } = await this.client.get<{ status: number; data: GroupMessage[] }>(
+      `/api/groups/${groupId}/messages`,
+      { params: { page, size } }
+    )
+    return data.data ?? []
+  }
+
+  async sendMessage(groupId: number, request: SendMessageRequest): Promise<GroupMessage> {
+    const { data } = await this.client.post<{ status: number; data: GroupMessage }>(
+      `/api/groups/${groupId}/messages`,
+      request
+    )
+    return data.data
+  }
+
+  async deleteMessage(messageId: number): Promise<void> {
+    await this.client.delete(`/api/groups/messages/${messageId}`)
+  }
+
+  async markAsRead(groupId: number, messageId: number): Promise<void> {
+    await this.client.post(`/api/groups/${groupId}/messages/${messageId}/read`)
+  }
+
+  async getReadReceipts(groupId: number): Promise<ReadReceiptResponse> {
+    const { data } = await this.client.get<{ status: number; data: ReadReceiptResponse }>(
+      `/api/groups/${groupId}/read-receipts`
+    )
+    return data.data
   }
 }
 
