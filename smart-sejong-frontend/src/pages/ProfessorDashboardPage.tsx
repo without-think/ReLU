@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import {
-  Users, BookOpen, ChevronRight, AlertTriangle, TrendingUp,
+  Users, BookOpen, ChevronRight, AlertTriangle,
   Calendar, CheckCircle2, BarChart3, AlertCircle,
 } from 'lucide-react'
 import { parseISO, differenceInDays } from 'date-fns'
@@ -192,7 +192,7 @@ export default function ProfessorDashboardPage() {
       </div>
 
       {/* 수강생 현황 통계 */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="card py-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#31465d]/10 flex items-center justify-center">
@@ -212,17 +212,6 @@ export default function ProfessorDashboardPage() {
             <div>
               <p className="text-2xl font-extrabold text-[#4a8768]">{overallStats.totalTeams}</p>
               <p className="text-xs text-[#7a7169]">팀 수</p>
-            </div>
-          </div>
-        </div>
-        <div className="card py-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#a8793d]/10 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-[#a8793d]" />
-            </div>
-            <div>
-              <p className="text-2xl font-extrabold text-[#a8793d]">{overallStats.avgProgress}%</p>
-              <p className="text-xs text-[#7a7169]">평균 진행률</p>
             </div>
           </div>
         </div>
@@ -286,21 +275,6 @@ export default function ProfessorDashboardPage() {
                           </>
                         )}
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 h-2 rounded-full bg-[#f2eee8]">
-                        <div
-                          className={`h-full rounded-full transition-all ${
-                            team.avgProgress >= 80 ? 'bg-[#4a8768]' :
-                            team.avgProgress >= 50 ? 'bg-[#a8793d]' : 'bg-[#6f4141]'
-                          }`}
-                          style={{ width: `${team.avgProgress}%` }}
-                        />
-                      </div>
-                      <span className="text-sm font-bold text-[#25231f] w-12 text-right">
-                        {team.avgProgress}%
-                      </span>
                     </div>
 
                     <div className="flex items-center gap-4 mt-2 text-xs text-[#7a7169]">
