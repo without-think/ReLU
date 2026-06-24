@@ -415,7 +415,6 @@ export default function GroupPage() {
           {!selectedGroupId ? (
             <div className="space-y-4">
               <TeamDashboard
-                courses={courses}
                 selectedCourse={selectedCourse}
                 myGroups={myGroups}
                 courseGroups={courseGroups}
@@ -423,7 +422,6 @@ export default function GroupPage() {
                 courseGroupsLoading={courseGroupsLoading}
                 view={teamView}
                 onViewChange={handleTeamViewChange}
-                onSelectCourse={setSelectedCourse}
                 onSelectGroup={(groupId) => { setSelectedGroupId(groupId); setActiveTab('home') }}
                 onJoinGroup={(inviteCode) => courseJoinMutation.mutate(inviteCode)}
                 onCreateGroup={() => setShowCreateModal(true)}
@@ -616,8 +614,7 @@ function FindGroupCard({ group, onSelect, onJoin }: {
   )
 }
 
-function TeamDashboard({ courses, selectedCourse, myGroups, courseGroups, myGroupsLoading, courseGroupsLoading, view, onViewChange, onSelectCourse, onSelectGroup, onJoinGroup, onCreateGroup, isProfessor }: {
-  courses: EcampusCourse[]
+function TeamDashboard({ selectedCourse, myGroups, courseGroups, myGroupsLoading, courseGroupsLoading, view, onViewChange, onSelectGroup, onJoinGroup, onCreateGroup, isProfessor }: {
   selectedCourse: EcampusCourse | null
   myGroups: GroupSummary[]
   courseGroups: GroupSummary[]
@@ -625,7 +622,6 @@ function TeamDashboard({ courses, selectedCourse, myGroups, courseGroups, myGrou
   courseGroupsLoading: boolean
   view: TeamView
   onViewChange: (view: TeamView) => void
-  onSelectCourse: (course: EcampusCourse) => void
   onSelectGroup: (groupId: number) => void
   onJoinGroup: (inviteCode: string) => void
   onCreateGroup: () => void
@@ -902,7 +898,13 @@ function HomeTab({ group, onRefresh }: { group: GroupDetail; onRefresh: () => vo
       </div>
 
       {/* Gantt chart */}
-      <GanttTab groupId={group.id} members={group.members} />
+      <GanttTab
+        groupId={group.id}
+        members={group.members}
+        projectStart={group.createdAt}
+        projectDeadline={group.projectDeadline}
+        canManage={isLeader}
+      />
 
       {/* Members grid */}
       <div className="card">

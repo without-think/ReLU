@@ -9,11 +9,14 @@ import type { ProjectTask, TeamMember } from '@/types'
 interface GanttTabProps {
   groupId: number
   members: TeamMember[]
+  projectStart?: string | null
+  projectDeadline?: string | null
+  canManage?: boolean
 }
 
 type ViewMode = 'Day' | 'Week' | 'Month'
 
-export function GanttTab({ groupId, members }: GanttTabProps) {
+export function GanttTab({ groupId, members, projectStart, projectDeadline, canManage = false }: GanttTabProps) {
   const queryClient = useQueryClient()
   const [viewMode, setViewMode] = useState<ViewMode>('Week')
   const [showAddForm, setShowAddForm] = useState(false)
@@ -94,6 +97,7 @@ export function GanttTab({ groupId, members }: GanttTabProps) {
   }
 
   const handleTaskClick = useCallback((task: ProjectTask) => {
+    if (!canManage) return
     setEditingTask(task)
     setForm({
       title: task.title,
@@ -103,17 +107,43 @@ export function GanttTab({ groupId, members }: GanttTabProps) {
       deadline: task.deadline ? task.deadline.substring(0, 16) : '',
     })
     setShowAddForm(false)
-  }, [])
+  }, [canManage])
+
+  const rangeStartMs = projectStart ? new Date(projectStart).getTime() : Number.NEGATIVE_INFINITY
+  const rangeEndMs = projectDeadline ? new Date(projectDeadline).getTime() : Number.POSITIVE_INFINITY
+  const dateInputMin = projectStart ? projectStart.substring(0, 16) : undefined
+  const dateInputMax = projectDeadline ? projectDeadline.substring(0, 16) : undefined
+
+  const isWithinProjectRange = useCallback((startDate: string, deadline: string) => {
+    const startMs = new Date(startDate).getTime()
+    const endMs = new Date(deadline).getTime()
+    return startMs >= rangeStartMs && endMs <= rangeEndMs
+  }, [rangeStartMs, rangeEndMs])
 
   const handleDateChange = useCallback((taskId: number, startDate: string, deadline: string) => {
+    if (!canManage) return
+    if (!isWithinProjectRange(startDate, deadline)) {
+      toast.error('과제 일정은 프로젝트 기간 안에서만 변경할 수 있습니다.')
+      queryClient.invalidateQueries({ queryKey: ['tasks', groupId] })
+      return
+    }
     updateDatesMutation.mutate({ taskId, startDate, deadline })
-  }, [updateDatesMutation])
+  }, [canManage, groupId, isWithinProjectRange, queryClient, updateDatesMutation])
 
   const handleProgressChange = useCallback((taskId: number, progress: number) => {
+    if (!canManage) return
     updateProgressMutation.mutate({ taskId, progress })
-  }, [updateProgressMutation])
+  }, [canManage, updateProgressMutation])
 
   const handleSubmit = () => {
+    if (!canManage) {
+      toast.error('팀장만 과제를 관리할 수 있습니다.')
+      return
+    }
+    if (form.startDate && form.deadline && !isWithinProjectRange(form.startDate, form.deadline)) {
+      toast.error('과제 일정은 프로젝트 기간 안에서만 설정할 수 있습니다.')
+      return
+    }
     if (editingTask) {
       updateMutation.mutate({
         taskId: editingTask.id,
@@ -162,7 +192,7 @@ export function GanttTab({ groupId, members }: GanttTabProps) {
             ))}
           </div>
 
-          <button
+          {canManage && <button
             onClick={() => {
               setShowAddForm((v) => !v)
               setEditingTask(null)
@@ -172,12 +202,12 @@ export function GanttTab({ groupId, members }: GanttTabProps) {
           >
             <Plus className="w-4 h-4" />
             <span>과제 추가</span>
-          </button>
+          </button>}
         </div>
       </div>
 
       {/* Add/Edit Form */}
-      {(showAddForm || editingTask) && (
+      {canManage && (showAddForm || editingTask) && (
         <div className="border border-dashed border-[#4a8768]/40 rounded-2xl p-4 space-y-3 bg-[#4a8768]/6">
           <div className="flex items-center justify-between">
             <span className="text-sm font-bold text-[#25231f]">
@@ -228,6 +258,8 @@ export function GanttTab({ groupId, members }: GanttTabProps) {
               <label className="text-xs text-[#7a7169] block mb-1">시작일</label>
               <input
                 type="datetime-local"
+                min={dateInputMin}
+                max={dateInputMax}
                 className="input"
                 value={form.startDate}
                 onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
@@ -237,6 +269,8 @@ export function GanttTab({ groupId, members }: GanttTabProps) {
               <label className="text-xs text-[#7a7169] block mb-1">마감일</label>
               <input
                 type="datetime-local"
+                min={dateInputMin}
+                max={dateInputMax}
                 className="input"
                 value={form.deadline}
                 onChange={(e) => setForm((f) => ({ ...f, deadline: e.target.value }))}
@@ -284,9 +318,12 @@ export function GanttTab({ groupId, members }: GanttTabProps) {
         <GanttChart
           tasks={tasks}
           viewMode={viewMode}
+          projectStart={projectStart}
+          projectDeadline={projectDeadline}
           onDateChange={handleDateChange}
           onProgressChange={handleProgressChange}
-          onTaskClick={handleTaskClick}
+          onTaskClick={canManage ? handleTaskClick : undefined}
+          editable={canManage}
         />
       </div>
 

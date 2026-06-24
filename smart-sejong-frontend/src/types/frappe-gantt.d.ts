@@ -18,6 +18,8 @@ declare module 'frappe-gantt' {
     bar_corner_radius?: number
     arrow_curve?: number
     padding?: number
+    infinite_padding?: boolean
+    scroll_to?: 'today' | 'start' | 'end' | string | null
     view_mode?: 'Day' | 'Week' | 'Month' | 'Year'
     date_format?: string
     language?: string

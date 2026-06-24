@@ -8,9 +8,25 @@ import '../../styles/frappe-gantt.css'
 interface GanttChartProps {
   tasks: ProjectTask[]
   viewMode: 'Day' | 'Week' | 'Month'
+  projectStart?: string | null
+  projectDeadline?: string | null
+  editable?: boolean
   onDateChange?: (taskId: number, startDate: string, deadline: string) => void
   onProgressChange?: (taskId: number, progress: number) => void
   onTaskClick?: (task: ProjectTask) => void
+}
+
+type GanttWithInternals = Gantt & {
+  gantt_start: Date
+  gantt_end: Date
+  dates: Date[]
+  config: {
+    step: number
+    unit: string
+    column_width: number
+  }
+  setup_date_values: () => void
+  render: () => void
 }
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
@@ -24,6 +40,9 @@ const STATUS_COLORS: Record<TaskStatus, string> = {
 export function GanttChart({
   tasks,
   viewMode,
+  projectStart,
+  projectDeadline,
+  editable = true,
   onDateChange,
   onProgressChange,
   onTaskClick,
@@ -39,6 +58,35 @@ export function GanttChart({
   useEffect(() => { onDateChangeRef.current = onDateChange }, [onDateChange])
   useEffect(() => { onProgressChangeRef.current = onProgressChange }, [onProgressChange])
   useEffect(() => { onTaskClickRef.current = onTaskClick }, [onTaskClick])
+
+  const rangeStart = projectStart ? parseISO(projectStart) : null
+  const rangeEnd = projectDeadline ? parseISO(projectDeadline) : null
+  const chartHeight = Math.min(640, Math.max(180, 124 + tasks.length * 44))
+
+  const clampHorizontalScroll = () => {
+    const container = containerRef.current
+    if (!container) return
+
+    const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth)
+    if (container.scrollLeft < 0) container.scrollLeft = 0
+    if (container.scrollLeft > maxScrollLeft) container.scrollLeft = maxScrollLeft
+  }
+
+  const enforceProjectRange = () => {
+    if (!ganttRef.current || !rangeStart || !rangeEnd || rangeEnd <= rangeStart) return
+
+    const gantt = ganttRef.current as GanttWithInternals
+    const start = new Date(rangeStart)
+    const end = addDays(new Date(rangeEnd), 1)
+    start.setHours(0, 0, 0, 0)
+    end.setHours(0, 0, 0, 0)
+
+    gantt.gantt_start = start
+    gantt.gantt_end = end
+    gantt.setup_date_values()
+    gantt.render()
+    requestAnimationFrame(clampHorizontalScroll)
+  }
 
   useEffect(() => {
     if (!containerRef.current || tasks.length === 0) return
@@ -67,13 +115,17 @@ export function GanttChart({
       const savedScroll = containerRef.current.scrollLeft
       ganttRef.current.refresh(ganttTasks)
       requestAnimationFrame(() => {
+        enforceProjectRange()
         if (containerRef.current) containerRef.current.scrollLeft = savedScroll
+        clampHorizontalScroll()
       })
     } else {
       ganttRef.current = new Gantt(containerRef.current, ganttTasks, {
         view_mode: viewMode,
         date_format: 'YYYY-MM-DD',
         language: 'ko',
+        infinite_padding: false,
+        scroll_to: 'start',
         custom_popup_html: (task: GanttTask) => {
           const projectTask = tasksMapRef.current.get(task.id)
           if (!projectTask) return ''
@@ -90,24 +142,56 @@ export function GanttChart({
             </div>
           `
         },
-        on_click: (task: GanttTask) => {
+        on_click: editable ? (task: GanttTask) => {
           const projectTask = tasksMapRef.current.get(task.id)
           if (projectTask) onTaskClickRef.current?.(projectTask)
-        },
-        on_date_change: (task: GanttTask, start: Date, end: Date) => {
+        } : undefined,
+        on_date_change: editable ? (task: GanttTask, start: Date, end: Date) => {
           onDateChangeRef.current?.(
             Number(task.id),
             format(start, "yyyy-MM-dd'T'HH:mm:ss"),
             format(end, "yyyy-MM-dd'T'HH:mm:ss")
           )
-        },
-        on_progress_change: (task: GanttTask, progress: number) => {
+        } : undefined,
+        on_progress_change: editable ? (task: GanttTask, progress: number) => {
           onProgressChangeRef.current?.(Number(task.id), progress)
-        },
+        } : undefined,
       })
+      requestAnimationFrame(enforceProjectRange)
     }
     // cleanup 없음 — gantt 인스턴스를 유지해야 스크롤 위치가 보존됨
-  }, [tasks, viewMode])
+  }, [tasks, viewMode, projectStart, projectDeadline, editable])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const handleWheel = (event: WheelEvent) => {
+      const horizontalIntent = event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)
+      if (!horizontalIntent) return
+
+      const delta = event.deltaX || event.deltaY
+      const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth)
+      const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, container.scrollLeft + delta))
+
+      event.preventDefault()
+      event.stopPropagation()
+
+      if (nextScrollLeft !== container.scrollLeft) {
+        container.scrollLeft = nextScrollLeft
+      }
+    }
+
+    const handleScroll = () => clampHorizontalScroll()
+
+    container.addEventListener('wheel', handleWheel, { passive: false, capture: true })
+    container.addEventListener('scroll', handleScroll)
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel, { capture: true })
+      container.removeEventListener('scroll', handleScroll)
+    }
+  }, [tasks.length, viewMode])
 
   // unmount 시에만 인스턴스 해제
   useEffect(() => {
@@ -117,8 +201,9 @@ export function GanttChart({
   useEffect(() => {
     if (ganttRef.current) {
       ganttRef.current.change_view_mode(viewMode)
+      requestAnimationFrame(enforceProjectRange)
     }
-  }, [viewMode])
+  }, [viewMode, projectStart, projectDeadline])
 
 
   if (tasks.length === 0) {
@@ -135,6 +220,12 @@ export function GanttChart({
       <style>{`
         .gantt-container {
           overflow-x: auto;
+          overflow-y: hidden;
+          height: ${chartHeight}px !important;
+          min-height: ${chartHeight}px;
+          overscroll-behavior-x: contain;
+          overscroll-behavior-y: auto;
+          touch-action: pan-y;
         }
         .gantt .bar-wrapper:hover .bar {
           fill: #4a8768 !important;

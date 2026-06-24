@@ -428,7 +428,7 @@ public class GroupServiceImpl implements GroupService {
     public TaskResponse createTask(Long groupId, Long userId, CreateTaskRequest request) {
         Group group = getGroup(groupId);
         User creator = getUser(userId);
-        assertMember(group, creator);
+        assertLeader(group, creator);
 
         User assignee = null;
         if (request.getAssigneeId() != null) {
@@ -500,7 +500,7 @@ public class GroupServiceImpl implements GroupService {
         ProjectTask task = projectTaskRepository.findById(taskId)
                 .orElseThrow(() -> new CustomException(ErrorCode.TASK_NOT_FOUND));
         User user = getUser(userId);
-        assertMember(task.getGroup(), user);
+        assertLeader(task.getGroup(), user);
 
         User assignee = null;
         if (request.getAssigneeId() != null) {
@@ -524,7 +524,7 @@ public class GroupServiceImpl implements GroupService {
         ProjectTask task = projectTaskRepository.findById(taskId)
                 .orElseThrow(() -> new CustomException(ErrorCode.TASK_NOT_FOUND));
         User user = getUser(userId);
-        assertMember(task.getGroup(), user);
+        assertLeader(task.getGroup(), user);
         projectTaskRepository.delete(task);
     }
 
@@ -534,7 +534,7 @@ public class GroupServiceImpl implements GroupService {
         ProjectTask task = projectTaskRepository.findById(taskId)
                 .orElseThrow(() -> new CustomException(ErrorCode.TASK_NOT_FOUND));
         User user = getUser(userId);
-        assertMember(task.getGroup(), user);
+        assertLeader(task.getGroup(), user);
         task.updateProgress(progress);
         return new TaskResponse(task);
     }
@@ -545,7 +545,7 @@ public class GroupServiceImpl implements GroupService {
         ProjectTask task = projectTaskRepository.findById(taskId)
                 .orElseThrow(() -> new CustomException(ErrorCode.TASK_NOT_FOUND));
         User user = getUser(userId);
-        assertMember(task.getGroup(), user);
+        assertLeader(task.getGroup(), user);
         task.updateDates(startDate, deadline);
         return new TaskResponse(task);
     }

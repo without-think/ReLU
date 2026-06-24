@@ -174,6 +174,7 @@ export interface GroupDetail {
   description: string | null
   inviteCode: string
   githubRepoUrl: string | null
+  createdAt: string
   projectDeadline: string | null
   ecampusCourseId: string | null
   courseName: string | null

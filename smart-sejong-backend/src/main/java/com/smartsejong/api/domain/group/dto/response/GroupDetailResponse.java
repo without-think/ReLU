@@ -13,6 +13,7 @@ public class GroupDetailResponse {
     private final String description;
     private final String inviteCode;
     private final String githubRepoUrl;
+    private final LocalDateTime createdAt;
     private final LocalDateTime projectDeadline;
     private final String ecampusCourseId;
     private final String courseName;
@@ -28,6 +29,7 @@ public class GroupDetailResponse {
         this.description = group.getDescription();
         this.inviteCode = group.getInviteCode();
         this.githubRepoUrl = group.getGithubRepoUrl();
+        this.createdAt = group.getCreatedAt();
         this.projectDeadline = group.getProjectDeadline();
         this.ecampusCourseId = group.getEcampusCourseId();
         this.courseName = group.getCourseName();
