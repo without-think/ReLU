@@ -161,7 +161,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse professorMockLogin(String name) {
-        User user = userRepository.findByFullName(name)
+        User user = userRepository.findFirstByFullName(name)
                 .orElseGet(() -> {
                     String mockId = "PROF_" + name.replaceAll("\\s+", "_").toUpperCase();
                     return userRepository.findByStudentId(mockId)
@@ -188,7 +188,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse demoLogin(String name) {
-        User user = userRepository.findByFullName(name)
+        User user = userRepository.findFirstByFullName(name)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         return generateAuthResponse(user);
     }

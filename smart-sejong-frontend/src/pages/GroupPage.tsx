@@ -261,7 +261,6 @@ export default function GroupPage() {
     { id: 'roles', label: '역할 배분' },
     { id: 'review', label: '동료 평가' },
     { id: 'ai', label: 'AI 분석' },
-    { id: 'ecampus', label: '과제 제출 이력' },
   ]
 
   // 교수용 탭 (시간표, 가능시간, 과제관리, 과제제출이력 제외)
@@ -477,16 +476,6 @@ export default function GroupPage() {
               )}
               {activeTab === 'chat' && (
                 <ChatPanel groupId={selectedGroupId} members={groupDetail.members} />
-              )}
-              {activeTab === 'ecampus' && (
-                activeGroupCourse ? (
-                  <CourseAssignmentPanel course={activeGroupCourse} />
-                ) : (
-                  <div className="card text-center py-12 text-[#b0a8a0]">
-                    <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                    <p>이 팀의 과목 데이터를 먼저 불러오세요</p>
-                  </div>
-                )
               )}
             </div>
           ) : null}
