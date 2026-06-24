@@ -13,12 +13,14 @@ public class UserProfileResponse {
     private String fullName;
     private String studentId;
     private String major;
+    private String grade;
 
     public static UserProfileResponse from(User user) {
         return UserProfileResponse.builder()
                 .fullName(user.getFullName())
                 .studentId(user.getStudentId())
                 .major(user.getMajor())
+                .grade(user.getGrade())
                 .build();
     }
 }

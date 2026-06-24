@@ -13,12 +13,14 @@ public class UserSyncResponse {
     private String fullName;
     private String studentId;
     private String major;
+    private String grade;
 
     public static UserSyncResponse from(User user) {
         return UserSyncResponse.builder()
                 .fullName(user.getFullName())
                 .studentId(user.getStudentId())
                 .major(user.getMajor())
+                .grade(user.getGrade())
                 .build();
     }
 }

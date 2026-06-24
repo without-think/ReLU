@@ -84,9 +84,11 @@ public class AuthServiceImpl implements AuthService {
                             .studentId(studentInfo.getStudentId())
                             .fullName(studentInfo.getFullName())
                             .major(studentInfo.getMajor())
+                            .grade(studentInfo.getGrade())
                             .build();
                     return userRepository.save(newUser);
                 });
+        user.updateInfo(studentInfo.getFullName(), studentInfo.getMajor(), studentInfo.getGrade());
 
         log.info("로그인 성공 - userId: {}, studentId: {}, name: {}",
                 user.getId(), user.getStudentId(), user.getFullName());
@@ -132,6 +134,7 @@ public class AuthServiceImpl implements AuthService {
                         .studentId(user.getStudentId())
                         .fullName(user.getFullName())
                         .major(user.getMajor())
+                        .grade(user.getGrade())
                         .build())
                 .build();
     }

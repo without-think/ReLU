@@ -182,8 +182,14 @@ class ApiClient {
 
   async getMyInfo(): Promise<UserInfo> {
     const { data } = await this.client.get<{ status?: number; data?: UserInfo }>('/api/users/me')
-    if (data?.data) return data.data
-    return data as unknown as UserInfo
+    const raw = data?.data ?? (data as unknown as UserInfo)
+    const profile = raw as UserInfo & { fullName?: string; studentId?: string }
+    return {
+      ...profile,
+      nickname: profile.nickname ?? profile.fullName ?? profile.studentId ?? profile.student_id ?? '사용자',
+      student_id: profile.student_id ?? profile.studentId,
+      is_verified: profile.is_verified ?? true,
+    }
   }
 
   async updateMyInfo(updates: { name?: string; major?: string }): Promise<void> {

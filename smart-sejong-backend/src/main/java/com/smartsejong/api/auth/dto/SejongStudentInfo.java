@@ -12,4 +12,5 @@ public class SejongStudentInfo {
     private final String studentId;
     private final String fullName;
     private final String major;
+    private final String grade;
 }

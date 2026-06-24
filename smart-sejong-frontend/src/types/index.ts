@@ -11,11 +11,16 @@ export interface AuthUserInfo {
   studentId: string
   fullName?: string
   major?: string
+  grade?: string
 }
 
 export interface UserInfo {
   nickname: string
   student_id?: string
+  fullName?: string
+  studentId?: string
+  major?: string
+  grade?: string
   is_verified: boolean
   profile_image?: string
 }

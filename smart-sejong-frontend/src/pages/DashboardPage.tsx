@@ -89,7 +89,7 @@ export default function DashboardPage() {
   const taskStats = useMemo(() => {
     const total = allTasks.length
     const completed = allTasks.filter(t => t.status === 'APPROVED' || t.status === 'SUBMITTED').length
-    const inProgress = allTasks.filter(t => t.status === 'IN_PROGRESS').length
+    const inProgress = allTasks.filter(t => t.status === 'PENDING' || t.status === 'LATE').length
     const pending = allTasks.filter(t => t.status === 'PENDING').length
     return { total, completed, inProgress, pending }
   }, [allTasks])

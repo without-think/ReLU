@@ -1,16 +1,17 @@
 package com.smartsejong.api.domain.user.entity;
 
 import com.smartsejong.api.common.entity.BaseTimeEntity;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 사용자 엔티티 (User Entity)
- * 세종대학교 포털 인증 정보를 관리합니다.
- */
 @Entity
 @Table(name = "users")
 @Getter
@@ -22,28 +23,32 @@ public class User extends BaseTimeEntity {
     private Long id;
 
     @Column(unique = true, nullable = false)
-    private String studentId; // 세종대 학번
+    private String studentId;
 
     @Column(nullable = false)
-    private String fullName; // 실명
+    private String fullName;
 
     @Column(nullable = false)
-    private String major; // 소속 학과
+    private String major;
+
+    @Column
+    private String grade;
 
     @Builder
-    public User(String studentId, String fullName, String major) {
+    public User(String studentId, String fullName, String major, String grade) {
         this.studentId = studentId;
         this.fullName = fullName;
         this.major = major;
+        this.grade = grade;
     }
 
-    /**
-     * 포털 정보 업데이트
-     * @param fullName 실명
-     * @param major 소속 학과
-     */
     public void updateInfo(String fullName, String major) {
+        updateInfo(fullName, major, this.grade);
+    }
+
+    public void updateInfo(String fullName, String major, String grade) {
         this.fullName = fullName;
         this.major = major;
+        this.grade = grade;
     }
 }

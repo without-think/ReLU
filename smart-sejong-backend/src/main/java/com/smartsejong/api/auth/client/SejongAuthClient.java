@@ -251,6 +251,7 @@ public class SejongAuthClient {
                 .studentId(studentId)
                 .fullName(name)
                 .major(major)
+                .grade(grade)
                 .build();
     }
 

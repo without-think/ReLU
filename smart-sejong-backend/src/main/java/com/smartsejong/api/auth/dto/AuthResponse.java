@@ -19,5 +19,6 @@ public class AuthResponse {
         private String studentId;
         private String fullName;
         private String major;
+        private String grade;
     }
 }

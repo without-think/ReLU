@@ -83,7 +83,7 @@ public class UserServiceImpl implements UserService {
         );
 
         // 사용자 정보 업데이트
-        user.updateInfo(studentInfo.getFullName(), studentInfo.getMajor());
+        user.updateInfo(studentInfo.getFullName(), studentInfo.getMajor(), studentInfo.getGrade());
 
         log.info("포털 정보 재동기화 완료 - userId: {}, studentId: {}", userId, user.getStudentId());
 

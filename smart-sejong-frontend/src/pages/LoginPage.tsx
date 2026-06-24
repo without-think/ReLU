@@ -33,6 +33,10 @@ export default function LoginPage() {
         setUser({
           nickname: response.user.fullName || response.user.studentId || '사용자',
           student_id: response.user.studentId,
+          fullName: response.user.fullName,
+          studentId: response.user.studentId,
+          major: response.user.major,
+          grade: response.user.grade,
           is_verified: true,
           profile_image: undefined,
         })
