@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
+import DashboardPage from './pages/DashboardPage'
 import GroupPage from './pages/GroupPage'
 import ProfilePage from './pages/ProfilePage'
 
@@ -46,7 +47,7 @@ function App() {
             </PrivateRoute>
           }
         >
-          <Route index element={<Navigate to="/group" replace />} />
+          <Route index element={<DashboardPage />} />
           <Route path="group" element={<GroupPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>

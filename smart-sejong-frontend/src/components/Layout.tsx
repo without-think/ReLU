@@ -1,10 +1,19 @@
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { api } from '@/lib/api'
-import { Search, Users, User, LogOut } from 'lucide-react'
+import { Home, Search, Users, User, LogOut, LucideIcon } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const navItems = [
+interface NavItem {
+  path: string
+  label: string
+  icon: LucideIcon
+  exact?: boolean
+  tab?: string | null
+}
+
+const navItems: NavItem[] = [
+  { path: '/', label: '대시보드', icon: Home, exact: true },
   { path: '/group', label: '내 팀', icon: Users, tab: null },
   { path: '/group?tab=find', label: '팀 찾기', icon: Search, tab: 'find' },
 ]
@@ -14,7 +23,12 @@ export default function Layout() {
   const location = useLocation()
   const { user, logout: clearUser } = useAuthStore()
 
-  const isNavActive = (item: typeof navItems[number]) => {
+  const isNavActive = (item: NavItem) => {
+    // 대시보드: 정확히 '/' 경로일 때만 활성화
+    if (item.exact) {
+      return location.pathname === item.path
+    }
+    // 그룹 관련 메뉴
     if (location.pathname !== '/group') return false
     const params = new URLSearchParams(location.search)
     return item.tab === (params.get('tab') ?? null)
