@@ -3,9 +3,11 @@ package com.smartsejong.api.domain.group.repository;
 import com.smartsejong.api.domain.group.entity.Group;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface GroupRepository extends JpaRepository<Group, Long> {
     Optional<Group> findByInviteCode(String inviteCode);
     boolean existsByInviteCode(String inviteCode);
+    List<Group> findByEcampusCourseId(String ecampusCourseId);
 }

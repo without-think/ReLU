@@ -38,9 +38,12 @@ export default function LoginPage() {
         })
       }
 
-      localStorage.setItem('ecampus_pw', password)
+      sessionStorage.setItem('ecampus_pw_once', password)
       toast.success('로그인에 성공했습니다!')
-      navigate('/group', { replace: true })
+      navigate('/group', {
+        replace: true,
+        state: { ecampusPassword: password, autoFetchEcampus: true },
+      })
     } catch (error: any) {
       console.error('Login error:', error)
       const errorMessage = error?.response?.data?.message || error?.message || '로그인에 실패했습니다.'

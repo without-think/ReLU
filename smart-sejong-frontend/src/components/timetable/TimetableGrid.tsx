@@ -13,6 +13,13 @@ const DAYS = ['월', '화', '수', '목', '금']
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 8) // 8시부터 21시까지
 
 export function TimetableGrid({ items, onItemClick, onPinToggle, editable = false }: TimetableGridProps) {
+  type PositionedItem = {
+    item: TimetableItem
+    pos: { day: number; slot: number; top: number; height: number }
+  }
+
+  const isPositionedItem = (value: PositionedItem | null): value is PositionedItem => value !== null
+
   const parseTime = (time: string): number => {
     const [hour, minute = 0] = time.split(':').map(Number)
     return hour + minute / 60
@@ -88,7 +95,7 @@ export function TimetableGrid({ items, onItemClick, onPinToggle, editable = fals
                         if (pos.slot !== hourIndex) return null
                         return { item, pos }
                       })
-                      .filter(Boolean)
+                      .filter(isPositionedItem)
                       .map(({ item, pos }) => (
                         <div
                           key={item.item_id}

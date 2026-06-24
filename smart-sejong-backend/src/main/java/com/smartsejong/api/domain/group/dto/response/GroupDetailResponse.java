@@ -14,6 +14,9 @@ public class GroupDetailResponse {
     private final String inviteCode;
     private final String githubRepoUrl;
     private final LocalDateTime projectDeadline;
+    private final String ecampusCourseId;
+    private final String courseName;
+    private final String professor;
     private final List<MemberResponse> members;
 
     public GroupDetailResponse(Group group, List<MemberResponse> members) {
@@ -23,6 +26,9 @@ public class GroupDetailResponse {
         this.inviteCode = group.getInviteCode();
         this.githubRepoUrl = group.getGithubRepoUrl();
         this.projectDeadline = group.getProjectDeadline();
+        this.ecampusCourseId = group.getEcampusCourseId();
+        this.courseName = group.getCourseName();
+        this.professor = group.getProfessor();
         this.members = members;
     }
 }

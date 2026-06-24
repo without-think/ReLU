@@ -12,4 +12,7 @@ public class CreateGroupRequest {
     private String description;
     private String githubRepoUrl;
     private LocalDateTime projectDeadline;
+    private String ecampusCourseId;
+    private String courseName;
+    private String professor;
 }

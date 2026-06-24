@@ -35,17 +35,30 @@ public class Group extends BaseTimeEntity {
     @Column
     private LocalDateTime projectDeadline;
 
+    @Column(length = 100)
+    private String ecampusCourseId;
+
+    @Column
+    private String courseName;
+
+    @Column
+    private String professor;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     private User createdBy;
 
     @Builder
-    public Group(String inviteCode, String name, String description, String githubRepoUrl, LocalDateTime projectDeadline, User createdBy) {
+    public Group(String inviteCode, String name, String description, String githubRepoUrl, LocalDateTime projectDeadline,
+                 String ecampusCourseId, String courseName, String professor, User createdBy) {
         this.inviteCode = inviteCode;
         this.name = name;
         this.description = description;
         this.githubRepoUrl = githubRepoUrl;
         this.projectDeadline = projectDeadline;
+        this.ecampusCourseId = ecampusCourseId;
+        this.courseName = courseName;
+        this.professor = professor;
         this.createdBy = createdBy;
     }
 

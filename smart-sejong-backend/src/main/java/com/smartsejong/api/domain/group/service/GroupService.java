@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface GroupService {
     CreateGroupResponse createGroup(Long userId, CreateGroupRequest request);
-    List<GroupSummaryResponse> getMyGroups(Long userId);
+    List<GroupSummaryResponse> getMyGroups(Long userId, String ecampusCourseId);
     GroupDetailResponse getGroupDetail(Long groupId, Long userId);
     void updateGroup(Long groupId, Long userId, UpdateGroupRequest request);
     void joinGroup(Long userId, JoinGroupRequest request);

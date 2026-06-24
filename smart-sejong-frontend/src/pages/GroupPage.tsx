@@ -1,11 +1,12 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
 import {
   Plus, Users, Copy, LogOut, UserPlus, Github, Clock, CheckCircle,
-  AlertTriangle, X, BookOpen, Search, ChevronDown, ChevronRight,
+  AlertTriangle, X, BookOpen, Search,
   CheckCircle2, XCircle, AlertCircle, Eye, EyeOff, Calendar, Trash2, Edit2,
 } from 'lucide-react'
 import {
@@ -85,16 +86,65 @@ function tempColor(temp: number) {
 
 type Tab = 'home' | 'timetable' | 'availability' | 'roles' | 'tasks' | 'review' | 'ecampus'
 
+interface GroupRouteState {
+  ecampusPassword?: string
+  autoFetchEcampus?: boolean
+}
+
+const ECAMPUS_COURSES_SESSION_KEY = 'ecampus_current_courses'
+const ECAMPUS_PASSWORD_ONCE_KEY = 'ecampus_pw_once'
+
+function loadCachedCourses(): EcampusCourse[] {
+  try {
+    const cached = sessionStorage.getItem(ECAMPUS_COURSES_SESSION_KEY)
+    return cached ? JSON.parse(cached) : []
+  } catch {
+    return []
+  }
+}
+
 export default function GroupPage() {
   const queryClient = useQueryClient()
+  const location = useLocation()
+  const routeState = location.state as GroupRouteState | null
+  const user = useAuthStore(s => s.user)
+  const studentId = user?.student_id ?? ''
+  const didAutoFetch = useRef(false)
+  const [courses, setCourses] = useState<EcampusCourse[]>(() => loadCachedCourses())
+  const [selectedCourse, setSelectedCourse] = useState<EcampusCourse | null>(() => loadCachedCourses()[0] ?? null)
+  const [ecampusPassword, setEcampusPassword] = useState(
+    routeState?.ecampusPassword ?? sessionStorage.getItem(ECAMPUS_PASSWORD_ONCE_KEY) ?? ''
+  )
+  const [showCoursePassword, setShowCoursePassword] = useState(false)
+  const [courseSearch, setCourseSearch] = useState('')
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('home')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showJoinModal, setShowJoinModal] = useState(false)
 
+  const fetchCoursesMutation = useMutation({
+    mutationFn: (password: string) => api.getEcampusCurrent({ studentId, password }),
+    onSuccess: data => {
+      sessionStorage.removeItem(ECAMPUS_PASSWORD_ONCE_KEY)
+      sessionStorage.setItem(ECAMPUS_COURSES_SESSION_KEY, JSON.stringify(data))
+      setCourses(data)
+      setSelectedCourse(current => current ?? data[0] ?? null)
+      if (data.length === 0) {
+        toast.error('현재학기 eCampus 과목을 찾지 못했습니다.')
+      }
+    },
+    onError: () => {
+      sessionStorage.removeItem(ECAMPUS_PASSWORD_ONCE_KEY)
+      setCourses([])
+      setSelectedCourse(null)
+      toast.error('eCampus 과목을 불러오지 못했습니다.')
+    },
+  })
+
   const { data: groups = [], isLoading } = useQuery({
-    queryKey: ['groups'],
-    queryFn: () => api.getGroups(),
+    queryKey: ['groups', selectedCourse?.courseId],
+    queryFn: () => api.getGroups({ ecampusCourseId: selectedCourse?.courseId }),
+    enabled: !!selectedCourse,
   })
 
   const { data: groupDetail, isLoading: detailLoading } = useQuery({
@@ -107,10 +157,48 @@ export default function GroupPage() {
     mutationFn: (id: number) => api.leaveGroup(id),
     onSuccess: () => {
       toast.success('그룹에서 나갔습니다.')
-      queryClient.invalidateQueries({ queryKey: ['groups'] })
+      queryClient.invalidateQueries({ queryKey: ['groups', selectedCourse?.courseId] })
       setSelectedGroupId(null)
     },
   })
+
+  const courseJoinMutation = useMutation({
+    mutationFn: (inviteCode: string) => api.joinGroup({ inviteCode }),
+    onSuccess: () => {
+      toast.success('팀에 참가했습니다.')
+      queryClient.invalidateQueries({ queryKey: ['groups', selectedCourse?.courseId] })
+    },
+    onError: () => toast.error('팀 참가에 실패했습니다.'),
+  })
+
+  useEffect(() => {
+    const oneTimePassword = routeState?.ecampusPassword ?? sessionStorage.getItem(ECAMPUS_PASSWORD_ONCE_KEY)
+    if (didAutoFetch.current || !oneTimePassword || !studentId) return
+    didAutoFetch.current = true
+    fetchCoursesMutation.mutate(oneTimePassword)
+  }, [fetchCoursesMutation, routeState?.ecampusPassword, studentId])
+
+  useEffect(() => {
+    setSelectedGroupId(null)
+    setActiveTab('home')
+  }, [selectedCourse?.courseId])
+
+  const filteredCourses = useMemo(() => {
+    if (!courseSearch.trim()) return courses
+    const q = courseSearch.toLowerCase()
+    return courses.filter(course =>
+      course.courseName.toLowerCase().includes(q) ||
+      course.professor.toLowerCase().includes(q)
+    )
+  }, [courses, courseSearch])
+
+  const handleCourseFetch = () => {
+    if (!ecampusPassword) {
+      toast.error('포털 비밀번호를 입력해주세요.')
+      return
+    }
+    fetchCoursesMutation.mutate(ecampusPassword)
+  }
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'home', label: '팀 홈' },
@@ -125,55 +213,165 @@ export default function GroupPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-[#25231f] mb-1">팀 프로젝트</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-[#25231f] mb-1">과목별 팀 프로젝트</h1>
+          {selectedCourse && (
+            <p className="text-sm font-medium text-[#7a7169]">
+              {selectedCourse.courseName}{selectedCourse.professor ? ` · ${selectedCourse.professor}` : ''}
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowCreateModal(true)} className="btn-primary flex items-center gap-2">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            disabled={!selectedCourse}
+            className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <Plus className="w-4 h-4" /><span>팀 생성</span>
           </button>
-          <button onClick={() => setShowJoinModal(true)} className="btn-secondary flex items-center gap-2">
+          <button
+            onClick={() => setShowJoinModal(true)}
+            disabled={!selectedCourse}
+            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <UserPlus className="w-4 h-4" /><span>참가</span>
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Sidebar: group list */}
+        {/* Sidebar: course and group list */}
         <div className="lg:col-span-1">
-          <div className="card">
-            <h2 className="font-bold text-[#7a7169] mb-3 text-xs uppercase tracking-wider">내 팀</h2>
-            {isLoading ? (
-              <div className="space-y-2">
-                {[1, 2].map(i => <div key={i} className="h-14 bg-[#f2eee8] rounded-xl animate-pulse" />)}
+          <div className="space-y-4">
+            <div className="card">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-bold text-[#7a7169] text-xs uppercase tracking-wider">내 과목</h2>
+                {courses.length > 0 && (
+                  <button
+                    onClick={() => {
+                      sessionStorage.removeItem(ECAMPUS_COURSES_SESSION_KEY)
+                      setCourses([])
+                      setSelectedCourse(null)
+                    }}
+                    className="text-xs font-bold text-[#b0a8a0] hover:text-[#6f4141]"
+                  >
+                    초기화
+                  </button>
+                )}
               </div>
-            ) : groups.length === 0 ? (
-              <div className="text-center py-8 text-[#b0a8a0]">
-                <Users className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">팀이 없습니다</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {groups.map(g => (
-                  <GroupCard
-                    key={g.id}
-                    group={g}
-                    isSelected={selectedGroupId === g.id}
-                    onSelect={() => { setSelectedGroupId(g.id); setActiveTab('home') }}
-                  />
-                ))}
-              </div>
-            )}
+
+              {courses.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-bold text-[#7a7169]">현재학기 {courses.length}개 과목</p>
+                    {fetchCoursesMutation.isPending && (
+                      <span className="text-xs font-bold text-[#b0a8a0]">동기화 중</span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#b0a8a0]" />
+                    <input
+                      type="text"
+                      value={courseSearch}
+                      onChange={e => setCourseSearch(e.target.value)}
+                      className="input pl-9 text-sm"
+                      placeholder="과목 검색"
+                    />
+                  </div>
+                  <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                    {filteredCourses.map(course => (
+                      <CourseSelectCard
+                        key={course.courseId}
+                        course={course}
+                        isSelected={selectedCourse?.courseId === course.courseId}
+                        onSelect={() => setSelectedCourse(course)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : fetchCoursesMutation.isPending ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map(i => <div key={i} className="h-14 bg-[#f2eee8] rounded-xl animate-pulse" />)}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-sm text-[#7a7169]">로그인 후 eCampus 과목을 백그라운드로 불러옵니다. 목록이 비어 있으면 다시 불러오세요.</p>
+                  <div className="relative">
+                    <input
+                      type={showCoursePassword ? 'text' : 'password'}
+                      className="input pr-10"
+                      placeholder="포털 비밀번호"
+                      value={ecampusPassword}
+                      onChange={e => setEcampusPassword(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleCourseFetch() }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCoursePassword(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    >
+                      {showCoursePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <button
+                    onClick={handleCourseFetch}
+                    disabled={!ecampusPassword}
+                    className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    과목 불러오기
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="card">
+              <h2 className="font-bold text-[#7a7169] mb-3 text-xs uppercase tracking-wider">이 과목의 팀</h2>
+              {!selectedCourse ? (
+                <div className="text-center py-8 text-[#b0a8a0]">
+                  <BookOpen className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                  <p className="text-sm">과목을 먼저 선택하세요</p>
+                </div>
+              ) : isLoading ? (
+                <div className="space-y-2">
+                  {[1, 2].map(i => <div key={i} className="h-14 bg-[#f2eee8] rounded-xl animate-pulse" />)}
+                </div>
+              ) : groups.length === 0 ? (
+                <div className="text-center py-8 text-[#b0a8a0]">
+                  <Users className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                  <p className="text-sm">아직 팀이 없습니다</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {groups.map(g => (
+                    <GroupCard
+                      key={g.id}
+                      group={g}
+                      isSelected={selectedGroupId === g.id}
+                      onSelect={() => { setSelectedGroupId(g.id); setActiveTab('home') }}
+                      onJoin={() => courseJoinMutation.mutate(g.inviteCode)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Main panel */}
         <div className="lg:col-span-3">
-          {!selectedGroupId ? (
+          {!selectedCourse ? (
             <div className="card text-center py-16 text-[#b0a8a0]">
-              <Users className="w-16 h-16 mx-auto mb-4 opacity-30" />
-              <p>팀을 선택하거나 새로 생성하세요</p>
+              <BookOpen className="w-16 h-16 mx-auto mb-4 opacity-30" />
+              <p>eCampus 과목을 불러온 뒤 과목을 선택하세요</p>
+            </div>
+          ) : !selectedGroupId ? (
+            <div className="space-y-4">
+              <div className="card text-center py-12 text-[#b0a8a0]">
+                <Users className="w-14 h-14 mx-auto mb-4 opacity-30" />
+                <p>이 과목에서 팀을 선택하거나 새로 생성하세요</p>
+              </div>
+              <CourseAssignmentPanel course={selectedCourse} />
             </div>
           ) : detailLoading ? (
             <div className="card text-center py-16">
@@ -225,7 +423,7 @@ export default function GroupPage() {
                 <ReviewTab groupId={selectedGroupId} members={groupDetail.members} />
               )}
               {activeTab === 'ecampus' && (
-                <EcampusTab />
+                <CourseAssignmentPanel course={selectedCourse} />
               )}
             </div>
           ) : null}
@@ -234,11 +432,12 @@ export default function GroupPage() {
 
       {showCreateModal && (
         <CreateGroupModal
+          course={selectedCourse}
           onClose={() => setShowCreateModal(false)}
           onCreated={(id) => {
             setSelectedGroupId(id)
             setShowCreateModal(false)
-            queryClient.invalidateQueries({ queryKey: ['groups'] })
+            queryClient.invalidateQueries({ queryKey: ['groups', selectedCourse?.courseId] })
           }}
         />
       )}
@@ -247,7 +446,7 @@ export default function GroupPage() {
           onClose={() => setShowJoinModal(false)}
           onJoined={() => {
             setShowJoinModal(false)
-            queryClient.invalidateQueries({ queryKey: ['groups'] })
+            queryClient.invalidateQueries({ queryKey: ['groups', selectedCourse?.courseId] })
           }}
         />
       )}
@@ -255,22 +454,134 @@ export default function GroupPage() {
   )
 }
 
+function CourseSelectCard({ course, isSelected, onSelect }: {
+  course: EcampusCourse; isSelected: boolean; onSelect: () => void
+}) {
+  const pending = course.assignments.filter(a => !a.submitted).length
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`w-full p-3.5 rounded-2xl border-2 text-left transition-all ${
+        isSelected
+          ? 'border-[#4a8768] bg-[#4a8768]/8'
+          : 'border-[#e7e0d7] hover:border-[#d0c8bf] bg-white/70'
+      }`}
+    >
+      <p className="font-bold text-[#25231f] text-sm tracking-tight truncate">{course.courseName}</p>
+      <div className="mt-1 flex items-center justify-between gap-2 text-xs text-[#b0a8a0]">
+        <span className="truncate">{course.professor || '교수 정보 없음'}</span>
+        {pending > 0 && <span className="font-bold text-[#a8793d] flex-shrink-0">미제출 {pending}</span>}
+      </div>
+    </button>
+  )
+}
+
 // ─── GroupCard ─────────────────────────────────────────────────────────────────
 
-function GroupCard({ group, isSelected, onSelect }: {
-  group: GroupSummary; isSelected: boolean; onSelect: () => void
+function GroupCard({ group, isSelected, onSelect, onJoin }: {
+  group: GroupSummary; isSelected: boolean; onSelect: () => void; onJoin: () => void
 }) {
   return (
     <div
-      onClick={onSelect}
+      onClick={() => { if (group.joined) onSelect() }}
       className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
         isSelected
           ? 'border-[#4a8768] bg-[#4a8768]/8'
           : 'border-[#e7e0d7] hover:border-[#d0c8bf] bg-white/70'
       }`}
     >
-      <p className="font-bold text-[#25231f] text-sm tracking-tight">{group.name}</p>
-      <p className="text-xs text-[#b0a8a0] mt-0.5">{group.memberCount}명{group.projectDeadline ? ` · D-${Math.max(0, differenceInHours(parseISO(group.projectDeadline), new Date()) / 24 | 0)}` : ''}</p>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-bold text-[#25231f] text-sm tracking-tight truncate">{group.name}</p>
+          <p className="text-xs text-[#b0a8a0] mt-0.5">{group.memberCount}명{group.projectDeadline ? ` · D-${Math.max(0, differenceInHours(parseISO(group.projectDeadline), new Date()) / 24 | 0)}` : ''}</p>
+        </div>
+        {!group.joined && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onJoin()
+            }}
+            className="px-2.5 py-1 rounded-full bg-[#4a8768] text-white text-xs font-bold flex-shrink-0"
+          >
+            참가
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CourseAssignmentPanel({ course }: { course: EcampusCourse }) {
+  const assignments = course.assignments ?? []
+  const stats = {
+    total: assignments.length,
+    submitted: assignments.filter(a => a.submitted).length,
+    pending: assignments.filter(a => !a.submitted).length,
+    urgent: assignments.filter(a => {
+      if (a.submitted || !a.deadline) return false
+      const d = parseISO(a.deadline)
+      return !isPast(d) && differenceInDays(d, new Date()) <= 3
+    }).length,
+  }
+
+  return (
+    <div className="card space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-[#4a8768]" />
+            <h3 className="font-bold text-[#25231f]">과제 제출 현황</h3>
+          </div>
+          <p className="mt-1 text-sm text-[#7a7169] truncate">
+            {course.courseName}{course.professor ? ` · ${course.professor}` : ''}
+          </p>
+        </div>
+        <span className="text-xs font-bold text-[#b0a8a0] flex-shrink-0">eCampus 동기화</span>
+      </div>
+
+      <div className="grid grid-cols-4 gap-2">
+        {[
+          { label: '전체', value: stats.total, color: 'text-[#25231f]' },
+          { label: '제출', value: stats.submitted, color: 'text-[#4a8768]' },
+          { label: '미제출', value: stats.pending, color: 'text-[#a8793d]' },
+          { label: '임박', value: stats.urgent, color: 'text-[#6f4141]' },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="border border-[#e7e0d7] rounded-2xl py-2.5 text-center bg-white/60">
+            <p className={`text-xl font-extrabold tracking-tight ${color}`}>{value}</p>
+            <p className="text-xs text-[#b0a8a0] font-medium">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        {assignments.length === 0 ? (
+          <div className="text-center py-8 text-[#b0a8a0]">
+            <CheckCircle className="w-10 h-10 mx-auto mb-2 opacity-40" />
+            <p className="text-sm">등록된 과제가 없습니다</p>
+          </div>
+        ) : assignments.map(assignment => (
+          <div
+            key={assignment.assignmentId}
+            className="flex items-center justify-between gap-3 rounded-2xl border border-[#e7e0d7] bg-white/70 px-4 py-3"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-[#25231f] truncate">{assignment.title}</p>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[#b0a8a0]">
+                {assignment.deadline && <span>마감 {assignment.deadline.replace('T', ' ').slice(0, 16)}</span>}
+                {assignment.submitted && assignment.submittedAt && (
+                  <span className="font-bold text-[#4a8768]">제출 {assignment.submittedAt.replace('T', ' ').slice(0, 16)}</span>
+                )}
+              </div>
+            </div>
+            <div className="flex-shrink-0">
+              <EcampusDeadlineBadge deadline={assignment.deadline} submitted={assignment.submitted} />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -956,8 +1267,8 @@ function ReviewTab({ groupId, members }: { groupId: number; members: TeamMember[
 
 // ─── Modals ───────────────────────────────────────────────────────────────────
 
-function CreateGroupModal({ onClose, onCreated }: {
-  onClose: () => void; onCreated: (id: number) => void
+function CreateGroupModal({ course, onClose, onCreated }: {
+  course: EcampusCourse | null; onClose: () => void; onCreated: (id: number) => void
 }) {
   const [form, setForm] = useState({ name: '', description: '', githubRepoUrl: '', projectDeadline: '' })
 
@@ -967,6 +1278,9 @@ function CreateGroupModal({ onClose, onCreated }: {
       description: form.description || undefined,
       githubRepoUrl: form.githubRepoUrl || undefined,
       projectDeadline: form.projectDeadline || undefined,
+      ecampusCourseId: course?.courseId,
+      courseName: course?.courseName,
+      professor: course?.professor,
     }),
     onSuccess: (data) => {
       toast.success(`팀 생성! 초대코드: ${data.inviteCode}`)
@@ -977,6 +1291,12 @@ function CreateGroupModal({ onClose, onCreated }: {
   return (
     <Modal title="새 팀 생성" onClose={onClose}>
       <div className="space-y-3">
+        {course && (
+          <div className="rounded-2xl border border-[#e7e0d7] bg-[#f2eee8]/50 px-3 py-2">
+            <p className="text-xs font-bold text-[#7a7169]">선택 과목</p>
+            <p className="text-sm font-extrabold text-[#25231f] truncate">{course.courseName}</p>
+          </div>
+        )}
         <input className="input" placeholder="팀 이름 *" value={form.name}
           onChange={e => setForm(f => ({ ...f, name: e.target.value }))} autoFocus />
         <textarea className="input resize-none" rows={2} placeholder="팀 설명 (선택)"
@@ -1189,16 +1509,6 @@ function TimetableTab() {
   )
 }
 
-// ─── EcampusTab ───────────────────────────────────────────────────────────────
-
-const SEMESTER_OPTIONS = [
-  { value: '10', label: '1학기' },
-  { value: '20', label: '2학기' },
-  { value: '11', label: '여름계절' },
-  { value: '21', label: '겨울계절' },
-]
-const YEAR_OPTIONS = Array.from({ length: 8 }, (_, i) => String(new Date().getFullYear() - 1 - i))
-
 function EcampusDeadlineBadge({ deadline, submitted }: { deadline: string | null; submitted: boolean }) {
   if (submitted) return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
@@ -1227,245 +1537,5 @@ function EcampusDeadlineBadge({ deadline, submitted }: { deadline: string | null
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${days <= 3 ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
       <Clock className="w-3 h-3" />D-{days}
     </span>
-  )
-}
-
-function EcampusCourseCard({ course }: { course: EcampusCourse }) {
-  const [open, setOpen] = useState(false)
-  const submitted = course.assignments.filter(a => a.submitted).length
-  const total = course.assignments.length
-  const hasUrgent = course.assignments.some(a => {
-    if (a.submitted || !a.deadline) return false
-    const d = parseISO(a.deadline)
-    return !isPast(d) && differenceInDays(d, new Date()) <= 3
-  })
-  return (
-    <div className={`border rounded-2xl overflow-hidden ${hasUrgent ? 'border-[#a8793d]/40' : 'border-[#e7e0d7]'}`}>
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between p-4 text-left hover:bg-[#f2eee8]/60 transition-colors"
-      >
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            {hasUrgent && <span className="w-2 h-2 rounded-full bg-[#a8793d] flex-shrink-0" />}
-            <p className="font-bold text-[#25231f] truncate text-sm">{course.courseName}</p>
-          </div>
-          {course.professor && <p className="text-xs text-[#b0a8a0] mt-0.5">{course.professor}</p>}
-        </div>
-        <div className="flex items-center gap-3 ml-3 flex-shrink-0">
-          {total > 0 && (
-            <span className="text-xs text-[#7a7169] font-medium">
-              {submitted}/{total}
-              {total - submitted > 0 && <span className="ml-1 text-[#a8793d] font-bold">({total - submitted} 미제출)</span>}
-            </span>
-          )}
-          {open ? <ChevronDown className="w-4 h-4 text-[#b0a8a0]" /> : <ChevronRight className="w-4 h-4 text-[#b0a8a0]" />}
-        </div>
-      </button>
-      {open && (
-        <div className="border-t border-[#e7e0d7] px-3 py-2 space-y-0.5 bg-[#f2eee8]/40">
-          {total === 0 ? (
-            <p className="text-sm text-[#b0a8a0] py-3 text-center">과제 없음</p>
-          ) : course.assignments.map(a => (
-            <div key={a.assignmentId} className="flex items-center justify-between py-2 px-2 rounded-xl hover:bg-white/60 transition-colors">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-[#25231f] truncate font-medium">{a.title}</p>
-                <div className="flex gap-3 mt-0.5 text-xs text-[#b0a8a0]">
-                  {a.deadline && <span>마감: {a.deadline.replace('T', ' ').slice(0, 16)}</span>}
-                  {a.submitted && a.submittedAt && <span className="text-[#4a8768] font-medium">제출: {a.submittedAt.replace('T', ' ').slice(0, 16)}</span>}
-                </div>
-              </div>
-              <div className="ml-3 flex-shrink-0">
-                <EcampusDeadlineBadge deadline={a.deadline} submitted={a.submitted} />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function EcampusTab() {
-  const user = useAuthStore(s => s.user)
-  const studentId = user?.student_id ?? ''
-
-  const [password, setPassword] = useState(() => localStorage.getItem('ecampus_pw') ?? '')
-  const [showPw, setShowPw] = useState(false)
-  const [tab, setTab] = useState<'current' | 'past'>('current')
-  const [year, setYear] = useState(YEAR_OPTIONS[0])
-  const [semester, setSemester] = useState('20')
-  const [search, setSearch] = useState('')
-  const [courses, setCourses] = useState<EcampusCourse[] | null>(null)
-
-  const fetchMutation = useMutation({
-    mutationFn: ({ pw, t, y, s }: { pw: string; t: 'current' | 'past'; y: string; s: string }) =>
-      t === 'current'
-        ? api.getEcampusCurrent({ studentId, password: pw })
-        : api.getEcampusPast({ studentId, password: pw }, y, s),
-    onSuccess: data => setCourses(data),
-    onError: () => {
-      setPassword('')
-      localStorage.removeItem('ecampus_pw')
-      setCourses(null)
-    },
-  })
-
-  const handleFetch = (pw: string, t = tab, y = year, s = semester) => {
-    localStorage.setItem('ecampus_pw', pw)
-    setPassword(pw)
-    fetchMutation.mutate({ pw, t, y, s })
-  }
-
-  const filtered = useMemo(() => {
-    if (!courses) return []
-    if (!search.trim()) return courses
-    const q = search.toLowerCase()
-    return courses.filter(c =>
-      c.courseName.toLowerCase().includes(q) ||
-      c.professor.toLowerCase().includes(q) ||
-      c.assignments.some(a => a.title.toLowerCase().includes(q))
-    )
-  }, [courses, search])
-
-  const stats = useMemo(() => {
-    if (!courses) return null
-    const all = courses.flatMap(c => c.assignments)
-    return {
-      total: all.length,
-      submitted: all.filter(a => a.submitted).length,
-      pending: all.filter(a => !a.submitted).length,
-      urgent: all.filter(a => {
-        if (a.submitted || !a.deadline) return false
-        const d = parseISO(a.deadline)
-        return !isPast(d) && differenceInDays(d, new Date()) <= 3
-      }).length,
-    }
-  }, [courses])
-
-  // 비밀번호 있으면 마운트 시 자동 로드
-  useState(() => {
-    const saved = localStorage.getItem('ecampus_pw')
-    if (saved && !courses) fetchMutation.mutate({ pw: saved, t: 'current', y: YEAR_OPTIONS[0], s: '20' })
-  })
-
-  if (!password && !fetchMutation.isPending) {
-    return (
-      <div className="card space-y-4">
-        <div className="flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-[#4a8768]" />
-          <h3 className="font-bold text-[#25231f]">e캠퍼스 과제 제출 이력</h3>
-        </div>
-        <p className="text-sm text-[#7a7169]">세종대 포털 비밀번호로 과제 제출 현황을 불러옵니다.</p>
-        <div className="space-y-3 max-w-sm">
-          <div className="relative">
-            <input
-              type={showPw ? 'text' : 'password'}
-              placeholder="포털 비밀번호"
-              className="input pr-10"
-              onKeyDown={e => { if (e.key === 'Enter' && e.currentTarget.value) handleFetch(e.currentTarget.value) }}
-              onChange={e => setPassword(e.target.value)}
-            />
-            <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-              {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
-          </div>
-          <button onClick={() => password && handleFetch(password)} disabled={!password} className="btn-primary w-full">
-            불러오기
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="card space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-[#4a8768]" />
-          <h3 className="font-bold text-[#25231f]">과제 제출 이력</h3>
-        </div>
-        <button
-          onClick={() => { setPassword(''); localStorage.removeItem('ecampus_pw'); setCourses(null) }}
-          className="text-xs text-[#b0a8a0] hover:text-[#6f4141] font-medium"
-        >
-          연동 해제
-        </button>
-      </div>
-
-      {/* 탭 */}
-      <div className="flex gap-2">
-        {(['current', 'past'] as const).map(t => (
-          <button
-            key={t}
-            onClick={() => { setTab(t); setCourses(null); if (password) handleFetch(password, t, year, semester) }}
-            className={`tab-btn ${tab === t ? 'tab-btn-active' : 'tab-btn-inactive'}`}
-          >
-            {t === 'current' ? '현재학기' : '이전학기'}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'past' && (
-        <div className="flex gap-2 flex-wrap">
-          <select className="input text-sm py-1.5 w-auto" value={year} onChange={e => setYear(e.target.value)}>
-            {YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}년</option>)}
-          </select>
-          <select className="input text-sm py-1.5 w-auto" value={semester} onChange={e => setSemester(e.target.value)}>
-            {SEMESTER_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-          <button onClick={() => handleFetch(password, 'past', year, semester)} className="btn-primary text-sm py-1.5">조회</button>
-        </div>
-      )}
-
-      {fetchMutation.isPending && (
-        <div className="space-y-2">
-          {[1, 2, 3].map(i => <div key={i} className="h-14 bg-[#f2eee8] rounded-2xl animate-pulse" />)}
-        </div>
-      )}
-
-      {fetchMutation.isError && (
-        <div className="p-3 rounded-2xl border border-[#6f4141]/30 bg-[#6f4141]/8 text-sm text-[#6f4141] font-medium">
-          로그인 실패. 비밀번호를 확인해주세요.
-        </div>
-      )}
-
-      {courses && !fetchMutation.isPending && (
-        <>
-          {stats && stats.total > 0 && (
-            <div className="grid grid-cols-4 gap-2">
-              {[
-                { label: '전체', value: stats.total, color: 'text-[#25231f]' },
-                { label: '제출', value: stats.submitted, color: 'text-[#4a8768]' },
-                { label: '미제출', value: stats.pending, color: 'text-[#a8793d]' },
-                { label: '임박', value: stats.urgent, color: 'text-[#6f4141]' },
-              ].map(({ label, value, color }) => (
-                <div key={label} className="border border-[#e7e0d7] rounded-2xl py-2.5 text-center bg-white/60">
-                  <p className={`text-xl font-extrabold tracking-tight ${color}`}>{value}</p>
-                  <p className="text-xs text-[#b0a8a0] font-medium">{label}</p>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#b0a8a0]" />
-            <input
-              type="text"
-              placeholder="강의명, 교수명, 과제명 검색"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="input pl-9 text-sm"
-            />
-          </div>
-          <div className="space-y-2">
-            {filtered.length === 0 ? (
-              <p className="text-center py-8 text-[#b0a8a0] text-sm">
-                {search ? '검색 결과 없음' : '강의 없음'}
-              </p>
-            ) : filtered.map(c => <EcampusCourseCard key={c.courseId} course={c} />)}
-          </div>
-        </>
-      )}
-    </div>
   )
 }

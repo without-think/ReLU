@@ -132,7 +132,11 @@ export interface GroupSummary {
   inviteCode: string
   githubRepoUrl: string | null
   projectDeadline: string | null
+  ecampusCourseId: string | null
+  courseName: string | null
+  professor: string | null
   memberCount: number
+  joined: boolean
 }
 
 export interface GroupDetail {
@@ -142,6 +146,9 @@ export interface GroupDetail {
   inviteCode: string
   githubRepoUrl: string | null
   projectDeadline: string | null
+  ecampusCourseId: string | null
+  courseName: string | null
+  professor: string | null
   members: TeamMember[]
 }
 
@@ -160,6 +167,9 @@ export interface CreateGroupRequest {
   description?: string
   githubRepoUrl?: string
   projectDeadline?: string
+  ecampusCourseId?: string
+  courseName?: string
+  professor?: string
 }
 
 export interface CreateGroupResponse {
@@ -301,4 +311,3 @@ export interface EcampusRequest {
   studentId: string
   password: string
 }
-

@@ -36,8 +36,9 @@ public class GroupController {
 
     @GetMapping
     public CommonResponse<List<GroupSummaryResponse>> getMyGroups(
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return CommonResponse.success(groupService.getMyGroups(userDetails.getUserId()));
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam(required = false) String ecampusCourseId) {
+        return CommonResponse.success(groupService.getMyGroups(userDetails.getUserId(), ecampusCourseId));
     }
 
     @GetMapping("/{groupId}")

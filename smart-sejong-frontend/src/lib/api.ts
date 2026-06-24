@@ -386,8 +386,11 @@ class ApiClient {
     return data.data
   }
 
-  async getGroups(): Promise<GroupSummary[]> {
-    const { data } = await this.client.get<{ status: number; data: GroupSummary[] }>('/api/groups')
+  async getGroups(params?: { ecampusCourseId?: string }): Promise<GroupSummary[]> {
+    const { data } = await this.client.get<{ status: number; data: GroupSummary[] }>(
+      '/api/groups',
+      { params: params ?? {} }
+    )
     return data.data ?? []
   }
 
@@ -513,4 +516,3 @@ class ApiClient {
 }
 
 export const api = new ApiClient()
-

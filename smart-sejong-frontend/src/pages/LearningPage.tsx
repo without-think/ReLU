@@ -5,7 +5,6 @@ import toast from 'react-hot-toast'
 import { Upload, FileSpreadsheet, Award } from 'lucide-react'
 import { Progress } from '@/components/ui/Progress'
 import { CourseCard } from '@/components/learning/CourseCard'
-import type { CompletedCourseItem, CompletedCourseSummary } from '@/types'
 
 const GRADUATION_REQUIREMENTS = {
   total: 130,
@@ -202,4 +201,3 @@ export default function LearningPage() {
     </div>
   )
 }
-

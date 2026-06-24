@@ -44,6 +44,9 @@ public class GroupServiceImpl implements GroupService {
                 .description(request.getDescription())
                 .githubRepoUrl(request.getGithubRepoUrl())
                 .projectDeadline(request.getProjectDeadline())
+                .ecampusCourseId(request.getEcampusCourseId())
+                .courseName(request.getCourseName())
+                .professor(request.getProfessor())
                 .inviteCode(inviteCode)
                 .createdBy(user)
                 .build();
@@ -57,13 +60,24 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    public List<GroupSummaryResponse> getMyGroups(Long userId) {
+    public List<GroupSummaryResponse> getMyGroups(Long userId, String ecampusCourseId) {
         User user = getUser(userId);
+        if (ecampusCourseId != null && !ecampusCourseId.isBlank()) {
+            return groupRepository.findByEcampusCourseId(ecampusCourseId).stream()
+                    .map(group -> new GroupSummaryResponse(
+                            group,
+                            groupMemberRepository.findByGroup(group).size(),
+                            groupMemberRepository.existsByGroupAndUser(group, user)
+                    ))
+                    .collect(Collectors.toList());
+        }
+
         List<GroupMember> memberships = groupMemberRepository.findByUser(user);
         return memberships.stream().map(gm -> {
             int count = groupMemberRepository.findByGroup(gm.getGroup()).size();
             return new GroupSummaryResponse(gm.getGroup(), count);
-        }).collect(Collectors.toList());
+        })
+                .collect(Collectors.toList());
     }
 
     @Override

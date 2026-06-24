@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 import toast from 'react-hot-toast'
 import { Search, Sparkles, Filter, Pin } from 'lucide-react'
 import { TimetableGrid } from '@/components/timetable/TimetableGrid'
-import type { RecommendationFilters, RecommendationCombination, TimetableItem } from '@/types'
+import type { RecommendationFilters, RecommendationCombination } from '@/types'
 
 const DAYS = ['월', '화', '수', '목', '금']
 const TIME_RANGES = [
@@ -51,7 +51,7 @@ export default function RecommendationPage() {
   const pinToggleMutation = useMutation({
     mutationFn: ({ itemId, isPinned }: { itemId: number; isPinned: boolean }) =>
       api.togglePin(itemId, isPinned),
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       if (variables.isPinned) {
         setPinnedItems([...pinnedItems, variables.itemId])
       } else {
@@ -318,4 +318,3 @@ export default function RecommendationPage() {
     </div>
   )
 }
-
