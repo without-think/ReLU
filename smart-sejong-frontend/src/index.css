@@ -2,27 +2,175 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── SeoulAlrim Korean font ── */
+@font-face {
+  font-family: 'SeoulAlrim';
+  src: url('/fonts/SeoulAlrim-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'SeoulAlrim';
+  src: url('/fonts/SeoulAlrim-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'SeoulAlrim';
+  src: url('/fonts/SeoulAlrim-ExtraBold.otf') format('opentype');
+  font-weight: 800;
+  font-display: swap;
+}
+
+/* ── Design tokens ── */
+:root {
+  --screen-bg: #f5f5f4;
+  --ui-font: 'SeoulAlrim', 'Pretendard Variable', 'Noto Sans KR', system-ui, sans-serif;
+
+  --text-primary: #25231f;
+  --text-secondary: #7a7169;
+  --text-muted: #b0a8a0;
+
+  --sage: #4a8768;
+  --sage-light: #4a876812;
+  --navy: #31465d;
+  --navy-light: #31465d12;
+  --burgundy: #6f4141;
+  --burgundy-light: #6f414112;
+  --gold: #a8793d;
+  --gold-light: #a8793d12;
+
+  --card-bg: rgba(255, 255, 255, 0.88);
+  --card-shadow: 0 16px 42px rgba(38, 32, 25, 0.12);
+  --card-ring: rgba(0, 0, 0, 0.05);
+
+  --cream: #f2eee8;
+  --cream-dark: #e7e0d7;
+}
+
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900;
+    background-color: var(--screen-bg);
+    color: var(--text-primary);
+    font-family: var(--ui-font);
+    -webkit-font-smoothing: antialiased;
   }
 }
 
+/* ── Animations ── */
+@keyframes bubble-text-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes topic-card-float {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+  }
+  33% {
+    transform: translateY(var(--float-y, -10px)) translateX(var(--float-x, 5px));
+  }
+  66% {
+    transform: translateY(calc(var(--float-y, -10px) * 0.5)) translateX(calc(var(--float-x, 5px) * -0.6));
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.bubble-text-enter {
+  animation: bubble-text-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.topic-card-float {
+  animation: topic-card-float var(--float-duration, 6s) ease-in-out var(--float-delay, 0s) infinite;
+}
+
+.fade-in-up {
+  animation: fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.slide-in {
+  animation: slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Component tokens ── */
 @layer components {
   .btn-primary {
-    @apply bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors font-medium;
+    @apply bg-[#4a8768] text-white px-5 py-2.5 rounded-full font-bold tracking-tight
+           hover:bg-[#3d7258] transition-all duration-200 hover:scale-[1.02]
+           active:scale-[0.98] shadow-sm hover:shadow-md;
   }
-  
+
   .btn-secondary {
-    @apply bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors font-medium;
+    @apply bg-[#f2eee8] text-[#25231f] px-5 py-2.5 rounded-full font-bold tracking-tight
+           hover:bg-[#e7e0d7] transition-all duration-200 hover:scale-[1.02]
+           active:scale-[0.98];
   }
-  
+
+  .btn-danger {
+    @apply bg-[#6f4141] text-white px-5 py-2.5 rounded-full font-bold tracking-tight
+           hover:bg-[#5a3636] transition-all duration-200 hover:scale-[1.02]
+           active:scale-[0.98];
+  }
+
   .card {
-    @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6;
+    @apply bg-white/90 rounded-[24px] shadow-[0_16px_42px_rgba(38,32,25,0.12)]
+           ring-1 ring-black/5 p-6 backdrop-blur-sm;
   }
-  
+
+  .card-sm {
+    @apply bg-white/90 rounded-[16px] shadow-[0_8px_24px_rgba(38,32,25,0.08)]
+           ring-1 ring-black/5 p-4 backdrop-blur-sm;
+  }
+
   .input {
-    @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+    @apply w-full px-4 py-2.5 border border-[#e7e0d7] rounded-xl
+           focus:outline-none focus:ring-2 focus:ring-[#4a8768]/30 focus:border-[#4a8768]
+           bg-white text-[#25231f] placeholder:text-[#b0a8a0]
+           transition-all duration-200;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-bold tracking-tight;
+  }
+
+  .tab-btn {
+    @apply px-4 py-2 rounded-full text-sm font-bold tracking-tight transition-all duration-200;
+  }
+
+  .tab-btn-active {
+    @apply bg-[#4a8768] text-white shadow-sm;
+  }
+
+  .tab-btn-inactive {
+    @apply text-[#7a7169] hover:bg-[#f2eee8] hover:text-[#25231f];
   }
 }
-

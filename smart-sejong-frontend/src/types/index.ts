@@ -121,7 +121,126 @@ export interface CreateTimetableResponse {
   timetable_id: number
 }
 
-// Group Types
+// Group / Team Project Types
+export type MemberRole = 'UNASSIGNED' | 'LEADER' | 'RESEARCHER' | 'PRESENTER' | 'BACKEND' | 'FRONTEND' | 'AI'
+export type TaskStatus = 'PENDING' | 'SUBMITTED' | 'LATE' | 'APPROVED' | 'REJECTED'
+
+export interface GroupSummary {
+  id: number
+  name: string
+  description: string | null
+  inviteCode: string
+  githubRepoUrl: string | null
+  projectDeadline: string | null
+  memberCount: number
+}
+
+export interface GroupDetail {
+  id: number
+  name: string
+  description: string | null
+  inviteCode: string
+  githubRepoUrl: string | null
+  projectDeadline: string | null
+  members: TeamMember[]
+}
+
+export interface TeamMember {
+  memberId: number
+  userId: number
+  name: string
+  studentId: string
+  major: string
+  role: MemberRole
+  temperature: number
+}
+
+export interface CreateGroupRequest {
+  name: string
+  description?: string
+  githubRepoUrl?: string
+  projectDeadline?: string
+}
+
+export interface CreateGroupResponse {
+  groupId: number
+  inviteCode: string
+}
+
+export interface JoinGroupRequest {
+  inviteCode: string
+}
+
+export interface UpdateGroupRequest {
+  name?: string
+  description?: string
+  githubRepoUrl?: string | null
+  projectDeadline?: string | null
+}
+
+export interface AvailabilitySlot {
+  dayOfWeek: string
+  slot: number
+}
+
+export interface AvailabilityResponse {
+  memberSlots: Record<number, AvailabilitySlot[]>
+  heatmap: Record<string, number>
+}
+
+export interface ProjectTask {
+  id: number
+  title: string
+  description: string | null
+  assigneeId: number | null
+  assigneeName: string | null
+  createdById: number
+  createdByName: string
+  deadline: string | null
+  submittedAt: string | null
+  fileName: string | null
+  fileUrl: string | null
+  status: TaskStatus
+  createdAt: string
+}
+
+export interface CreateTaskRequest {
+  title: string
+  description?: string
+  assigneeId?: number
+  deadline?: string
+}
+
+export interface PeerReviewRequest {
+  revieweeId: number
+  contributionScore: number
+  contributing: number
+  interacting: number
+  keepingOnTrack: number
+  expectingQuality: number
+  knowledgeSkills: number
+  comment?: string
+}
+
+export interface MemberScore {
+  userId: number
+  name: string
+  avgContributionScore: number
+  avgContributing: number
+  avgInteracting: number
+  avgKeepingOnTrack: number
+  avgExpectingQuality: number
+  avgKnowledgeSkills: number
+  overallTemperatureDelta: number
+  suspectedFreeRider: boolean
+  reviewCount: number
+}
+
+export interface PeerReviewSummary {
+  memberScores: MemberScore[]
+}
+
+// Legacy aliases kept for backward compatibility
 export interface Group {
   id: number
   name: string
@@ -133,19 +252,6 @@ export interface GroupMember {
   user_id: number
   nickname: string
   timetable?: TimetableItem[]
-}
-
-export interface CreateGroupRequest {
-  group_name: string
-}
-
-export interface CreateGroupResponse {
-  invite_code: string
-  group_id: number
-}
-
-export interface JoinGroupRequest {
-  invite_code: string
 }
 
 export interface JoinGroupResponse {
@@ -173,5 +279,26 @@ export interface RecommendationCombination {
 export interface CopyRecommendationRequest {
   section_id: number
   target_id: number
+}
+
+// Ecampus Types
+export interface EcampusAssignment {
+  assignmentId: string
+  title: string
+  deadline: string | null
+  submittedAt: string | null
+  submitted: boolean
+}
+
+export interface EcampusCourse {
+  courseId: string
+  courseName: string
+  professor: string
+  assignments: EcampusAssignment[]
+}
+
+export interface EcampusRequest {
+  studentId: string
+  password: string
 }
 

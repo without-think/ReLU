@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
-import { GraduationCap } from 'lucide-react'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -22,33 +21,31 @@ export default function LoginPage() {
     setIsLoggingIn(true)
     try {
       const response = await api.login({ studentId, password })
-      
-      // JWT 토큰 저장
+
       if (response.accessToken) {
         localStorage.setItem('token', response.accessToken)
         if (response.refreshToken) {
           localStorage.setItem('refreshToken', response.refreshToken)
         }
       }
-      
-      // 사용자 정보 저장 및 인증 상태 업데이트
+
       if (response.user) {
         setUser({
           nickname: response.user.fullName || response.user.studentId || '사용자',
           student_id: response.user.studentId,
-          is_verified: true, // 로그인 성공 시 인증됨
+          is_verified: true,
           profile_image: undefined,
         })
       }
-      
+
+      localStorage.setItem('ecampus_pw', password)
       toast.success('로그인에 성공했습니다!')
-      navigate('/learning', { replace: true })
+      navigate('/group', { replace: true })
     } catch (error: any) {
       console.error('Login error:', error)
       const errorMessage = error?.response?.data?.message || error?.message || '로그인에 실패했습니다.'
       toast.error(errorMessage)
-      
-      // 백엔드가 실행되지 않은 경우 안내
+
       if (error?.code === 'ERR_NETWORK' || error?.message?.includes('Failed to fetch')) {
         toast.error('백엔드 서버가 실행 중인지 확인해주세요. (http://localhost:8080)')
       }
@@ -58,21 +55,72 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        <div className="card text-center">
-          <div className="flex justify-center mb-6">
-            <div className="bg-primary-600 p-4 rounded-full">
-              <GraduationCap className="w-12 h-12 text-white" />
-            </div>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Smart Sejong</h1>
-          <p className="text-gray-600 mb-8">스마트 시간표 관리 시스템</p>
+    <div
+      className="relative min-h-screen w-full overflow-hidden flex items-center justify-center px-4"
+      style={{ background: 'var(--screen-bg)', fontFamily: 'var(--ui-font)' }}
+    >
+      {/* Decorative floating blobs */}
+      <div
+        className="pointer-events-none fixed top-[-120px] right-[-80px] w-[400px] h-[400px] rounded-full opacity-30"
+        style={{ background: 'radial-gradient(circle, #4a8768 0%, transparent 70%)' }}
+      />
+      <div
+        className="pointer-events-none fixed bottom-[-80px] left-[-60px] w-[320px] h-[320px] rounded-full opacity-20"
+        style={{ background: 'radial-gradient(circle, #31465d 0%, transparent 70%)' }}
+      />
 
-          {/* 로그인 폼 */}
+      <div className="relative z-10 w-full max-w-[1000px] flex items-center gap-16 fade-in-up">
+
+        {/* Left: brand copy */}
+        <div className="flex-1 hidden md:block">
+          <div className="mb-4 flex items-center gap-2">
+            <span
+              className="px-3 py-1 rounded-full text-xs font-bold"
+              style={{ background: 'var(--sage-light)', color: 'var(--sage)' }}
+            >
+              세종대학교
+            </span>
+          </div>
+          <h1
+            className="text-[48px] font-extrabold leading-[1.15] tracking-[-0.03em]"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            팀플을 더 스마트하게,<br />
+            <span style={{ color: 'var(--sage)' }}>Check-Mate</span>
+          </h1>
+          <p className="mt-4 text-[16px] font-medium" style={{ color: 'var(--text-secondary)' }}>
+            팀원 역할 분배, 일정 조율, 과제 관리를<br />한 곳에서 관리하세요.
+          </p>
+        </div>
+
+        {/* Right: login card */}
+        <div
+          className="w-full max-w-[420px] rounded-[28px] p-8"
+          style={{
+            background: 'rgba(255,255,255,0.88)',
+            boxShadow: 'var(--card-shadow)',
+            border: '1px solid rgba(0,0,0,0.05)',
+            backdropFilter: 'blur(12px)',
+          }}
+        >
+          <div className="mb-6">
+            <h2
+              className="text-[26px] font-extrabold tracking-[-0.02em]"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              로그인
+            </h2>
+            <p className="mt-1 text-[14px]" style={{ color: 'var(--text-secondary)' }}>
+              세종대학교 포털 계정으로 로그인합니다
+            </p>
+          </div>
+
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                className="block text-sm font-bold mb-1.5"
+                style={{ color: 'var(--text-primary)' }}
+              >
                 학번
               </label>
               <input
@@ -85,7 +133,10 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                className="block text-sm font-bold mb-1.5"
+                style={{ color: 'var(--text-primary)' }}
+              >
                 비밀번호
               </label>
               <input
@@ -100,18 +151,17 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoggingIn}
-              className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full btn-primary mt-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
-              {isLoggingIn ? '로그인 중...' : '로그인'}
+              {isLoggingIn ? '로그인 중...' : '로그인하기'}
             </button>
           </form>
 
-          <p className="text-xs text-gray-500 mt-6 text-center">
-            세종대학교 포털 계정으로 로그인합니다
+          <p className="text-xs mt-5 text-center" style={{ color: 'var(--text-muted)' }}>
+            학번과 포털 비밀번호를 사용합니다
           </p>
         </div>
       </div>
     </div>
   )
 }
-

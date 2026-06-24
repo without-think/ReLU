@@ -1,6 +1,5 @@
 package com.smartsejong.api.domain.group.entity;
 
-import com.smartsejong.api.common.entity.BaseTimeEntity;
 import com.smartsejong.api.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -9,10 +8,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "group_members")
+@Table(name = "availabilities",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"group_id", "user_id", "day_of_week", "slot"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class GroupMember extends BaseTimeEntity {
+public class Availability {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,26 +26,19 @@ public class GroupMember extends BaseTimeEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private MemberRole role = MemberRole.UNASSIGNED;
+    // "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"
+    @Column(name = "day_of_week", nullable = false, length = 3)
+    private String dayOfWeek;
 
+    // 0-based 30-min slot index from 09:00. e.g. 0=09:00, 1=09:30, ...
     @Column(nullable = false)
-    private double temperature = 36.5;
+    private int slot;
 
     @Builder
-    public GroupMember(Group group, User user) {
+    public Availability(Group group, User user, String dayOfWeek, int slot) {
         this.group = group;
         this.user = user;
-        this.role = MemberRole.UNASSIGNED;
-        this.temperature = 36.5;
-    }
-
-    public void assignRole(MemberRole role) {
-        this.role = role;
-    }
-
-    public void adjustTemperature(double delta) {
-        this.temperature = Math.max(0, Math.min(100, this.temperature + delta));
+        this.dayOfWeek = dayOfWeek;
+        this.slot = slot;
     }
 }

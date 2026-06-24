@@ -13,18 +13,28 @@ import type {
   CourseMaster,
   Section,
   Timetable,
-  TimetableItem,
   CreateTimetableRequest,
   CreateTimetableResponse,
-  Group,
-  GroupMember,
+  GroupSummary,
+  GroupDetail,
+  TeamMember,
   CreateGroupRequest,
   CreateGroupResponse,
   JoinGroupRequest,
-  JoinGroupResponse,
+  UpdateGroupRequest,
+  AvailabilitySlot,
+  AvailabilityResponse,
+  ProjectTask,
+  CreateTaskRequest,
+  TaskStatus,
+  MemberRole,
+  PeerReviewRequest,
+  PeerReviewSummary,
   RecommendationRequest,
   RecommendationCombination,
   CopyRecommendationRequest,
+  EcampusCourse,
+  EcampusRequest,
 } from '@/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
@@ -370,42 +380,103 @@ class ApiClient {
     return data
   }
 
-  // Group APIs
+  // Group / Team Project APIs
   async createGroup(request: CreateGroupRequest): Promise<CreateGroupResponse> {
-    const { data } = await this.client.post<CreateGroupResponse>('/api/groups', request)
-    return data
+    const { data } = await this.client.post<{ status: number; data: CreateGroupResponse }>('/api/groups', request)
+    return data.data
   }
 
-  async getGroups(): Promise<Group[]> {
-    const { data } = await this.client.get<Group[]>('/api/groups')
-    return data
+  async getGroups(): Promise<GroupSummary[]> {
+    const { data } = await this.client.get<{ status: number; data: GroupSummary[] }>('/api/groups')
+    return data.data ?? []
   }
 
-  async getGroup(id: number): Promise<Group & { members: GroupMember[] }> {
-    const { data } = await this.client.get<Group & { members: GroupMember[] }>(
-      `/api/groups/${id}`
-    )
-    return data
+  async getGroupDetail(id: number): Promise<GroupDetail> {
+    const { data } = await this.client.get<{ status: number; data: GroupDetail }>(`/api/groups/${id}`)
+    return data.data
   }
 
-  async joinGroup(request: JoinGroupRequest): Promise<JoinGroupResponse> {
-    const { data } = await this.client.post<JoinGroupResponse>('/api/groups/join', request)
-    return data
+  async updateGroup(id: number, request: UpdateGroupRequest): Promise<void> {
+    await this.client.patch(`/api/groups/${id}`, request)
+  }
+
+  async joinGroup(request: JoinGroupRequest): Promise<void> {
+    await this.client.post('/api/groups/join', request)
   }
 
   async leaveGroup(id: number): Promise<void> {
     await this.client.delete(`/api/groups/${id}/leave`)
   }
 
-  async setActiveTimetable(groupId: number, timetableId: number): Promise<void> {
-    await this.client.put(`/api/groups/${groupId}/active`, { timetable_id: timetableId })
+  async setAvailability(groupId: number, slots: AvailabilitySlot[]): Promise<void> {
+    await this.client.post(`/api/groups/${groupId}/availability`, { slots })
   }
 
-  async getMemberTimetable(groupId: number, userId: number): Promise<{ user_id: number; items: TimetableItem[] }> {
-    const { data } = await this.client.get<{ user_id: number; items: TimetableItem[] }>(
-      `/api/groups/${groupId}/members/${userId}/timetable`
+  async getAvailability(groupId: number): Promise<AvailabilityResponse> {
+    const { data } = await this.client.get<{ status: number; data: AvailabilityResponse }>(
+      `/api/groups/${groupId}/availability`
     )
-    return data
+    return data.data
+  }
+
+  async getGroupMembers(groupId: number): Promise<TeamMember[]> {
+    const { data } = await this.client.get<{ status: number; data: TeamMember[] }>(
+      `/api/groups/${groupId}/members`
+    )
+    return data.data ?? []
+  }
+
+  async assignRole(groupId: number, memberId: number, role: MemberRole): Promise<TeamMember> {
+    const { data } = await this.client.put<{ status: number; data: TeamMember }>(
+      `/api/groups/${groupId}/members/${memberId}/role`,
+      { role }
+    )
+    return data.data
+  }
+
+  async createTask(groupId: number, request: CreateTaskRequest): Promise<ProjectTask> {
+    const { data } = await this.client.post<{ status: number; data: ProjectTask }>(
+      `/api/groups/${groupId}/tasks`,
+      request
+    )
+    return data.data
+  }
+
+  async getTasks(groupId: number): Promise<ProjectTask[]> {
+    const { data } = await this.client.get<{ status: number; data: ProjectTask[] }>(
+      `/api/groups/${groupId}/tasks`
+    )
+    return data.data ?? []
+  }
+
+  async submitTask(taskId: number, file?: File): Promise<ProjectTask> {
+    const formData = new FormData()
+    if (file) formData.append('file', file)
+    const { data } = await this.client.post<{ status: number; data: ProjectTask }>(
+      `/api/groups/tasks/${taskId}/submit`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    )
+    return data.data
+  }
+
+  async updateTaskStatus(taskId: number, status: TaskStatus): Promise<ProjectTask> {
+    const { data } = await this.client.patch<{ status: number; data: ProjectTask }>(
+      `/api/groups/tasks/${taskId}/status`,
+      { status }
+    )
+    return data.data
+  }
+
+  async submitPeerReview(groupId: number, request: PeerReviewRequest): Promise<void> {
+    await this.client.post(`/api/groups/${groupId}/reviews`, request)
+  }
+
+  async getPeerReviewSummary(groupId: number): Promise<PeerReviewSummary> {
+    const { data } = await this.client.get<{ status: number; data: PeerReviewSummary }>(
+      `/api/groups/${groupId}/reviews`
+    )
+    return data.data
   }
 
   // AI Recommendation APIs
@@ -421,6 +492,23 @@ class ApiClient {
 
   async copyRecommendation(request: CopyRecommendationRequest): Promise<void> {
     await this.client.post('/api/recommend/copy', request)
+  }
+
+  // Ecampus APIs
+  async getEcampusCurrent(request: EcampusRequest): Promise<EcampusCourse[]> {
+    const { data } = await this.client.post<{ status: number; data: EcampusCourse[] }>(
+      '/api/ecampus/courses/current',
+      request
+    )
+    return data.data ?? []
+  }
+
+  async getEcampusPast(request: EcampusRequest, year: string, semester: string): Promise<EcampusCourse[]> {
+    const { data } = await this.client.post<{ status: number; data: EcampusCourse[] }>(
+      `/api/ecampus/courses/past?year=${year}&semester=${semester}`,
+      request
+    )
+    return data.data ?? []
   }
 }
 

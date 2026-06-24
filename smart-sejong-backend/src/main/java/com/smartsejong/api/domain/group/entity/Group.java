@@ -1,15 +1,15 @@
 package com.smartsejong.api.domain.group.entity;
 
 import com.smartsejong.api.common.entity.BaseTimeEntity;
+import com.smartsejong.api.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 그룹(싱크) 엔티티: 친구들과 시간표를 공유하기 위한 협업 세션입니다.
- */
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "groups")
 @Getter
@@ -21,21 +21,38 @@ public class Group extends BaseTimeEntity {
     private Long id;
 
     @Column(unique = true, nullable = false, length = 6)
-    private String inviteCode; // 방 입장을 위한 6자리 고유 코드
+    private String inviteCode;
 
     @Column(nullable = false)
-    private String name; // 그룹 명칭
+    private String name;
+
+    @Column(length = 500)
+    private String description;
+
+    @Column
+    private String githubRepoUrl;
+
+    @Column
+    private LocalDateTime projectDeadline;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by")
+    private User createdBy;
 
     @Builder
-    public Group(String inviteCode, String name) {
+    public Group(String inviteCode, String name, String description, String githubRepoUrl, LocalDateTime projectDeadline, User createdBy) {
         this.inviteCode = inviteCode;
         this.name = name;
+        this.description = description;
+        this.githubRepoUrl = githubRepoUrl;
+        this.projectDeadline = projectDeadline;
+        this.createdBy = createdBy;
     }
 
-    /**
-     * 비즈니스 로직: 그룹 이름 수정
-     */
-    public void updateName(String name) {
-        this.name = name;
+    public void updateSettings(String name, String description, String githubRepoUrl, LocalDateTime projectDeadline) {
+        if (name != null) this.name = name;
+        if (description != null) this.description = description;
+        this.githubRepoUrl = githubRepoUrl;
+        this.projectDeadline = projectDeadline;
     }
 }

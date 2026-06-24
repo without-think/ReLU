@@ -1,21 +1,11 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { api } from '@/lib/api'
-import { 
-  GraduationCap, 
-  Sparkles, 
-  Calendar, 
-  Users, 
-  User,
-  LogOut 
-} from 'lucide-react'
+import { Users, User, LogOut } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const navItems = [
-  { path: '/learning', label: '학습 현황', icon: GraduationCap },
-  { path: '/recommendation', label: 'AI 추천', icon: Sparkles },
-  { path: '/timetable', label: '내 시간표', icon: Calendar },
-  { path: '/group', label: '그룹 협동', icon: Users },
+  { path: '/group', label: '팀 프로젝트', icon: Users },
 ]
 
 export default function Layout() {
@@ -34,14 +24,23 @@ export default function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ background: 'var(--screen-bg)', fontFamily: 'var(--ui-font)' }}>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+      <header
+        className="sticky top-0 z-50 backdrop-blur-md"
+        style={{
+          background: 'rgba(245, 245, 244, 0.85)',
+          borderBottom: '1px solid rgba(0,0,0,0.06)',
+          boxShadow: '0 1px 12px rgba(38,32,25,0.06)',
+        }}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-8">
-              <h1 className="text-xl font-bold text-primary-600">Smart Sejong</h1>
-              <nav className="hidden md:flex space-x-1">
+              <h1 className="text-xl font-extrabold tracking-tight" style={{ color: 'var(--sage)' }}>
+                Check-Mate
+              </h1>
+              <nav className="hidden md:flex gap-1">
                 {navItems.map((item) => {
                   const Icon = item.icon
                   return (
@@ -49,33 +48,34 @@ export default function Layout() {
                       key={item.path}
                       to={item.path}
                       className={({ isActive }) =>
-                        `flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                        `flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold tracking-tight transition-all duration-200 ${
                           isActive
-                            ? 'bg-primary-50 text-primary-600 font-medium'
-                            : 'text-gray-600 hover:bg-gray-50'
+                            ? 'bg-[#4a8768] text-white shadow-sm'
+                            : 'text-[#7a7169] hover:bg-[#f2eee8] hover:text-[#25231f]'
                         }`
                       }
                     >
-                      <Icon className="w-5 h-5" />
+                      <Icon className="w-4 h-4" />
                       <span>{item.label}</span>
                     </NavLink>
                   )
                 })}
               </nav>
             </div>
-            <div className="flex items-center space-x-4">
+
+            <div className="flex items-center gap-3">
               <NavLink
                 to="/profile"
-                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold tracking-tight text-[#7a7169] hover:bg-[#f2eee8] hover:text-[#25231f] transition-all duration-200"
               >
-                <User className="w-5 h-5" />
+                <User className="w-4 h-4" />
                 <span className="hidden sm:inline">{user?.nickname || '사용자'}</span>
               </NavLink>
               <button
                 onClick={handleLogout}
-                className="flex items-center space-x-2 text-gray-600 hover:text-red-600 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold tracking-tight text-[#7a7169] hover:bg-[#f2eee8] hover:text-[#6f4141] transition-all duration-200"
               >
-                <LogOut className="w-5 h-5" />
+                <LogOut className="w-4 h-4" />
                 <span className="hidden sm:inline">로그아웃</span>
               </button>
             </div>
@@ -84,7 +84,13 @@ export default function Layout() {
       </header>
 
       {/* Mobile Navigation */}
-      <nav className="md:hidden bg-white border-t border-gray-200 fixed bottom-0 left-0 right-0 z-50">
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 backdrop-blur-md"
+        style={{
+          background: 'rgba(245, 245, 244, 0.92)',
+          borderTop: '1px solid rgba(0,0,0,0.06)',
+        }}
+      >
         <div className="flex justify-around">
           {navItems.map((item) => {
             const Icon = item.icon
@@ -93,13 +99,13 @@ export default function Layout() {
                 key={item.path}
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex flex-col items-center justify-center py-2 px-4 flex-1 ${
-                    isActive ? 'text-primary-600' : 'text-gray-600'
+                  `flex flex-col items-center justify-center py-2.5 px-4 flex-1 text-xs font-bold tracking-tight transition-all ${
+                    isActive ? 'text-[#4a8768]' : 'text-[#b0a8a0]'
                   }`
                 }
               >
-                <Icon className="w-6 h-6" />
-                <span className="text-xs mt-1">{item.label}</span>
+                <Icon className="w-5 h-5" />
+                <span className="mt-1">{item.label}</span>
               </NavLink>
             )
           })}
@@ -113,4 +119,3 @@ export default function Layout() {
     </div>
   )
 }
-
