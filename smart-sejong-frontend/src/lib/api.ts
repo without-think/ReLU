@@ -212,6 +212,7 @@ class ApiClient {
     const profile = raw as UserInfo & { fullName?: string; studentId?: string }
     return {
       ...profile,
+      id: profile.id ?? profile.userId,
       nickname: profile.nickname ?? profile.fullName ?? profile.studentId ?? profile.student_id ?? '사용자',
       student_id: profile.student_id ?? profile.studentId,
       is_verified: profile.is_verified ?? true,
@@ -498,6 +499,11 @@ class ApiClient {
 
   async updateGroup(id: number, request: UpdateGroupRequest): Promise<void> {
     await this.client.patch(`/api/groups/${id}`, request)
+  }
+
+  async completeGroup(id: number): Promise<GroupDetail> {
+    const { data } = await this.client.post<{ status: number; data: GroupDetail }>(`/api/groups/${id}/complete`)
+    return data.data
   }
 
   async joinGroup(request: JoinGroupRequest): Promise<void> {

@@ -18,6 +18,7 @@ public class GroupSummaryResponse {
     private final String professor;
     private final int memberCount;
     private final boolean joined;
+    private final boolean completed;
 
     public GroupSummaryResponse(Group group, int memberCount) {
         this(group, memberCount, true);
@@ -35,5 +36,6 @@ public class GroupSummaryResponse {
         this.professor = group.getProfessor();
         this.memberCount = memberCount;
         this.joined = joined;
+        this.completed = group.isProjectCompleted();
     }
 }

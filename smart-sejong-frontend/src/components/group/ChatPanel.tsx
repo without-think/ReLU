@@ -2,10 +2,10 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
-import { Send, Trash2, Reply, X, AtSign, Check, CheckCheck } from 'lucide-react'
+import { Send, Trash2, Reply, X, AtSign, CheckCheck } from 'lucide-react'
 import { format, parseISO, isToday, isYesterday } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { Client } from '@stomp/stompjs'
+import { Client, type IMessage } from '@stomp/stompjs'
 import SockJS from 'sockjs-client'
 import type { GroupMessage, TeamMember } from '@/types'
 
@@ -82,7 +82,7 @@ export function ChatPanel({ groupId, members = [] }: ChatPanelProps) {
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
       onConnect: () => {
-        client.subscribe(`/topic/group/${groupId}`, (frame) => {
+        client.subscribe(`/topic/group/${groupId}`, (frame: IMessage) => {
           try {
             const newMessage: GroupMessage = JSON.parse(frame.body)
             queryClient.setQueryData(['messages', groupId], (old: GroupMessage[] = []) => {

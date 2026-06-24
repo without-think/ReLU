@@ -123,6 +123,13 @@ public class GroupController {
         return CommonResponse.success(groupService.confirmRoles(groupId, userDetails.getUserId()));
     }
 
+    @PostMapping("/{groupId}/complete")
+    public CommonResponse<GroupDetailResponse> completeProject(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long groupId) {
+        return CommonResponse.success(groupService.completeProject(groupId, userDetails.getUserId()));
+    }
+
     @PutMapping("/{groupId}/members/{memberId}/additional-roles")
     public CommonResponse<MemberResponse> setAdditionalRoles(
             @AuthenticationPrincipal CustomUserDetails userDetails,

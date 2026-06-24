@@ -20,6 +20,7 @@ public interface GroupService {
     MemberResponse updatePreference(Long groupId, Long userId, UpdatePreferenceRequest request);
     MemberResponse markReady(Long groupId, Long userId);
     GroupDetailResponse confirmRoles(Long groupId, Long userId);
+    GroupDetailResponse completeProject(Long groupId, Long userId);
     MemberResponse setAdditionalRoles(Long groupId, Long memberId, Long userId, SetAdditionalRolesRequest request);
     List<MemberResponse> getMembers(Long groupId);
 
