@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
@@ -86,6 +86,7 @@ function tempColor(temp: number) {
 // ─── main page ────────────────────────────────────────────────────────────────
 
 type Tab = 'home' | 'timetable' | 'availability' | 'roles' | 'tasks' | 'gantt' | 'review' | 'ecampus'
+type TeamView = 'mine' | 'find'
 
 interface GroupRouteState {
   ecampusPassword?: string
@@ -107,12 +108,13 @@ function loadCachedCourses(): EcampusCourse[] {
 export default function GroupPage() {
   const queryClient = useQueryClient()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const routeState = location.state as GroupRouteState | null
   const user = useAuthStore(s => s.user)
   const studentId = user?.student_id ?? ''
   const didAutoFetch = useRef(false)
   const [courses, setCourses] = useState<EcampusCourse[]>(() => loadCachedCourses())
-  const [selectedCourse, setSelectedCourse] = useState<EcampusCourse | null>(() => loadCachedCourses()[0] ?? null)
+  const [selectedCourse, setSelectedCourse] = useState<EcampusCourse | null>(null)
   const [ecampusPassword, setEcampusPassword] = useState(
     routeState?.ecampusPassword ?? sessionStorage.getItem(ECAMPUS_PASSWORD_ONCE_KEY) ?? ''
   )
@@ -120,6 +122,7 @@ export default function GroupPage() {
   const [courseSearch, setCourseSearch] = useState('')
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('home')
+  const [teamView, setTeamView] = useState<TeamView>(() => searchParams.get('tab') === 'find' ? 'find' : 'mine')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showJoinModal, setShowJoinModal] = useState(false)
 
@@ -129,7 +132,6 @@ export default function GroupPage() {
       sessionStorage.removeItem(ECAMPUS_PASSWORD_ONCE_KEY)
       sessionStorage.setItem(ECAMPUS_COURSES_SESSION_KEY, JSON.stringify(data))
       setCourses(data)
-      setSelectedCourse(current => current ?? data[0] ?? null)
       if (data.length === 0) {
         toast.error('현재학기 eCampus 과목을 찾지 못했습니다.')
       }
@@ -142,7 +144,12 @@ export default function GroupPage() {
     },
   })
 
-  const { data: groups = [], isLoading } = useQuery({
+  const { data: myGroups = [], isLoading: myGroupsLoading } = useQuery({
+    queryKey: ['groups'],
+    queryFn: () => api.getGroups(),
+  })
+
+  const { data: courseGroups = [], isLoading: courseGroupsLoading } = useQuery({
     queryKey: ['groups', selectedCourse?.courseId],
     queryFn: () => api.getGroups({ ecampusCourseId: selectedCourse?.courseId }),
     enabled: !!selectedCourse,
@@ -158,6 +165,7 @@ export default function GroupPage() {
     mutationFn: (id: number) => api.leaveGroup(id),
     onSuccess: () => {
       toast.success('그룹에서 나갔습니다.')
+      queryClient.invalidateQueries({ queryKey: ['groups'] })
       queryClient.invalidateQueries({ queryKey: ['groups', selectedCourse?.courseId] })
       setSelectedGroupId(null)
     },
@@ -167,7 +175,9 @@ export default function GroupPage() {
     mutationFn: (inviteCode: string) => api.joinGroup({ inviteCode }),
     onSuccess: () => {
       toast.success('팀에 참가했습니다.')
+      queryClient.invalidateQueries({ queryKey: ['groups'] })
       queryClient.invalidateQueries({ queryKey: ['groups', selectedCourse?.courseId] })
+      handleTeamViewChange('mine')
     },
     onError: () => toast.error('팀 참가에 실패했습니다.'),
   })
@@ -184,6 +194,11 @@ export default function GroupPage() {
     setActiveTab('home')
   }, [selectedCourse?.courseId])
 
+  useEffect(() => {
+    const nextView = searchParams.get('tab') === 'find' ? 'find' : 'mine'
+    setTeamView(nextView)
+  }, [searchParams])
+
   const filteredCourses = useMemo(() => {
     if (!courseSearch.trim()) return courses
     const q = courseSearch.toLowerCase()
@@ -193,12 +208,24 @@ export default function GroupPage() {
     )
   }, [courses, courseSearch])
 
+  const activeGroupCourse = useMemo(() => {
+    if (selectedCourse) return selectedCourse
+    if (!groupDetail?.ecampusCourseId) return null
+    return courses.find(course => course.courseId === groupDetail.ecampusCourseId) ?? null
+  }, [courses, groupDetail?.ecampusCourseId, selectedCourse])
+
   const handleCourseFetch = () => {
     if (!ecampusPassword) {
       toast.error('포털 비밀번호를 입력해주세요.')
       return
     }
     fetchCoursesMutation.mutate(ecampusPassword)
+  }
+
+  const handleTeamViewChange = (view: TeamView) => {
+    setTeamView(view)
+    setSelectedGroupId(null)
+    setSearchParams(view === 'find' ? { tab: 'find' } : {})
   }
 
   const tabs: { id: Tab; label: string }[] = [
@@ -217,8 +244,8 @@ export default function GroupPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-[#25231f] mb-1">과목별 팀 프로젝트</h1>
-          {selectedCourse && (
+          <h1 className="text-3xl font-extrabold tracking-tight text-[#25231f] mb-1">팀 프로젝트</h1>
+          {teamView === 'find' && selectedCourse && (
             <p className="text-sm font-medium text-[#7a7169]">
               {selectedCourse.courseName}{selectedCourse.professor ? ` · ${selectedCourse.professor}` : ''}
             </p>
@@ -242,8 +269,9 @@ export default function GroupPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className={`grid grid-cols-1 gap-6 ${teamView === 'find' ? 'lg:grid-cols-4' : ''}`}>
         {/* Sidebar: course and group list */}
+        {teamView === 'find' && (
         <div className="lg:col-span-1">
           <div className="space-y-4">
             <div className="card">
@@ -287,7 +315,11 @@ export default function GroupPage() {
                         key={course.courseId}
                         course={course}
                         isSelected={selectedCourse?.courseId === course.courseId}
-                        onSelect={() => setSelectedCourse(course)}
+                        onSelect={() => {
+                          setSelectedCourse(course)
+                          setSelectedGroupId(null)
+                          handleTeamViewChange('find')
+                        }}
                       />
                     ))}
                   </div>
@@ -327,53 +359,29 @@ export default function GroupPage() {
               )}
             </div>
 
-            <div className="card">
-              <h2 className="font-bold text-[#7a7169] mb-3 text-xs uppercase tracking-wider">이 과목의 팀</h2>
-              {!selectedCourse ? (
-                <div className="text-center py-8 text-[#b0a8a0]">
-                  <BookOpen className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">과목을 먼저 선택하세요</p>
-                </div>
-              ) : isLoading ? (
-                <div className="space-y-2">
-                  {[1, 2].map(i => <div key={i} className="h-14 bg-[#f2eee8] rounded-xl animate-pulse" />)}
-                </div>
-              ) : groups.length === 0 ? (
-                <div className="text-center py-8 text-[#b0a8a0]">
-                  <Users className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">아직 팀이 없습니다</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {groups.map(g => (
-                    <GroupCard
-                      key={g.id}
-                      group={g}
-                      isSelected={selectedGroupId === g.id}
-                      onSelect={() => { setSelectedGroupId(g.id); setActiveTab('home') }}
-                      onJoin={() => courseJoinMutation.mutate(g.inviteCode)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
+        )}
 
         {/* Main panel */}
-        <div className="lg:col-span-3">
-          {!selectedCourse ? (
-            <div className="card text-center py-16 text-[#b0a8a0]">
-              <BookOpen className="w-16 h-16 mx-auto mb-4 opacity-30" />
-              <p>eCampus 과목을 불러온 뒤 과목을 선택하세요</p>
-            </div>
-          ) : !selectedGroupId ? (
+        <div className={teamView === 'find' ? 'lg:col-span-3' : ''}>
+          {!selectedGroupId ? (
             <div className="space-y-4">
-              <div className="card text-center py-12 text-[#b0a8a0]">
-                <Users className="w-14 h-14 mx-auto mb-4 opacity-30" />
-                <p>이 과목에서 팀을 선택하거나 새로 생성하세요</p>
-              </div>
-              <CourseAssignmentPanel course={selectedCourse} />
+              <TeamDashboard
+                courses={courses}
+                selectedCourse={selectedCourse}
+                myGroups={myGroups}
+                courseGroups={courseGroups}
+                myGroupsLoading={myGroupsLoading}
+                courseGroupsLoading={courseGroupsLoading}
+                view={teamView}
+                onViewChange={handleTeamViewChange}
+                onSelectCourse={setSelectedCourse}
+                onSelectGroup={(groupId) => { setSelectedGroupId(groupId); setActiveTab('home') }}
+                onJoinGroup={(inviteCode) => courseJoinMutation.mutate(inviteCode)}
+                onCreateGroup={() => setShowCreateModal(true)}
+              />
+              {teamView === 'find' && selectedCourse && <CourseAssignmentPanel course={selectedCourse} />}
             </div>
           ) : detailLoading ? (
             <div className="card text-center py-16">
@@ -428,7 +436,14 @@ export default function GroupPage() {
                 <ReviewTab groupId={selectedGroupId} members={groupDetail.members} />
               )}
               {activeTab === 'ecampus' && (
-                <CourseAssignmentPanel course={selectedCourse} />
+                activeGroupCourse ? (
+                  <CourseAssignmentPanel course={activeGroupCourse} />
+                ) : (
+                  <div className="card text-center py-12 text-[#b0a8a0]">
+                    <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p>이 팀의 과목 데이터를 먼저 불러오세요</p>
+                  </div>
+                )
               )}
             </div>
           ) : null}
@@ -442,6 +457,7 @@ export default function GroupPage() {
           onCreated={(id) => {
             setSelectedGroupId(id)
             setShowCreateModal(false)
+            queryClient.invalidateQueries({ queryKey: ['groups'] })
             queryClient.invalidateQueries({ queryKey: ['groups', selectedCourse?.courseId] })
           }}
         />
@@ -451,6 +467,7 @@ export default function GroupPage() {
           onClose={() => setShowJoinModal(false)}
           onJoined={() => {
             setShowJoinModal(false)
+            queryClient.invalidateQueries({ queryKey: ['groups'] })
             queryClient.invalidateQueries({ queryKey: ['groups', selectedCourse?.courseId] })
           }}
         />
@@ -485,22 +502,48 @@ function CourseSelectCard({ course, isSelected, onSelect }: {
 
 // ─── GroupCard ─────────────────────────────────────────────────────────────────
 
-function GroupCard({ group, isSelected, onSelect, onJoin }: {
-  group: GroupSummary; isSelected: boolean; onSelect: () => void; onJoin: () => void
+function GroupCard({ group, isSelected, onSelect }: {
+  group: GroupSummary; isSelected: boolean; onSelect: () => void
+}) {
+  const courseLabel = group.courseName || '과목 정보 없음'
+  const professorLabel = group.professor || '교수 정보 없음'
+
+  return (
+    <div
+      onClick={onSelect}
+      className={`min-h-[180px] p-6 rounded-[28px] border-2 cursor-pointer transition-all bg-white shadow-[0_18px_48px_rgba(38,32,25,0.10)] hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(38,32,25,0.14)] ${
+        isSelected
+          ? 'border-[#4a8768] bg-[#4a8768]/8'
+          : 'border-[#e7e0d7] hover:border-[#d0c8bf]'
+      }`}
+    >
+      <div className="flex h-full flex-col justify-between gap-5">
+        <div className="min-w-0 space-y-3">
+          <p className="font-extrabold text-[#25231f] text-lg tracking-tight truncate">{group.name}</p>
+          <div className="space-y-1.5">
+            <p className="text-sm font-bold text-[#7a7169] truncate">{courseLabel}</p>
+            <p className="text-xs font-bold text-[#b0a8a0] truncate">{professorLabel}</p>
+          </div>
+        </div>
+        <p className="text-sm text-[#b0a8a0] font-bold">참여 {group.memberCount}명{group.projectDeadline ? ` · D-${Math.max(0, differenceInHours(parseISO(group.projectDeadline), new Date()) / 24 | 0)}` : ''}</p>
+      </div>
+    </div>
+  )
+}
+
+function FindGroupCard({ group, onSelect, onJoin }: {
+  group: GroupSummary; onSelect: () => void; onJoin: () => void
 }) {
   return (
     <div
       onClick={() => { if (group.joined) onSelect() }}
-      className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
-        isSelected
-          ? 'border-[#4a8768] bg-[#4a8768]/8'
-          : 'border-[#e7e0d7] hover:border-[#d0c8bf] bg-white/70'
-      }`}
+      className="p-3.5 rounded-2xl border-2 cursor-pointer transition-all border-[#e7e0d7] hover:border-[#d0c8bf] bg-white/70"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-bold text-[#25231f] text-sm tracking-tight truncate">{group.name}</p>
-          <p className="text-xs text-[#b0a8a0] mt-0.5">{group.memberCount}명{group.projectDeadline ? ` · D-${Math.max(0, differenceInHours(parseISO(group.projectDeadline), new Date()) / 24 | 0)}` : ''}</p>
+          <p className="text-xs text-[#7a7169] mt-1 truncate">{group.courseName || '과목 정보 없음'}</p>
+          <p className="text-xs text-[#b0a8a0] mt-0.5">참여 {group.memberCount}명{group.projectDeadline ? ` · D-${Math.max(0, differenceInHours(parseISO(group.projectDeadline), new Date()) / 24 | 0)}` : ''}</p>
         </div>
         {!group.joined && (
           <button
@@ -515,6 +558,123 @@ function GroupCard({ group, isSelected, onSelect, onJoin }: {
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+function TeamDashboard({ courses, selectedCourse, myGroups, courseGroups, myGroupsLoading, courseGroupsLoading, view, onViewChange, onSelectCourse, onSelectGroup, onJoinGroup, onCreateGroup }: {
+  courses: EcampusCourse[]
+  selectedCourse: EcampusCourse | null
+  myGroups: GroupSummary[]
+  courseGroups: GroupSummary[]
+  myGroupsLoading: boolean
+  courseGroupsLoading: boolean
+  view: TeamView
+  onViewChange: (view: TeamView) => void
+  onSelectCourse: (course: EcampusCourse) => void
+  onSelectGroup: (groupId: number) => void
+  onJoinGroup: (inviteCode: string) => void
+  onCreateGroup: () => void
+}) {
+  const isLoading = view === 'mine' ? myGroupsLoading : courseGroupsLoading
+  const visibleGroups = view === 'mine' ? myGroups : courseGroups
+
+  return (
+    <div className={view === 'mine' ? 'space-y-4' : 'card space-y-4'}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-xl font-extrabold tracking-tight text-[#25231f]">
+            {view === 'mine' ? '내가 소속된 팀' : '팀 찾기'}
+          </h2>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onViewChange('mine')}
+            className={`tab-btn ${view === 'mine' ? 'tab-btn-active' : 'tab-btn-inactive'}`}
+          >
+            내 팀
+          </button>
+          <button
+            onClick={() => onViewChange('find')}
+            className={`tab-btn ${view === 'find' ? 'tab-btn-active' : 'tab-btn-inactive'}`}
+          >
+            팀 찾기
+          </button>
+        </div>
+      </div>
+
+      {view === 'find' && courses.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {courses.map(course => (
+            <button
+              key={course.courseId}
+              onClick={() => onSelectCourse(course)}
+              className={`px-3 py-2 rounded-full border text-sm font-bold whitespace-nowrap transition-colors ${
+                selectedCourse?.courseId === course.courseId
+                  ? 'bg-[#4a8768] text-white border-[#4a8768]'
+                  : 'bg-white/70 text-[#7a7169] border-[#e7e0d7] hover:border-[#4a8768]/40'
+              }`}
+            >
+              {course.courseName}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {view === 'find' && !selectedCourse ? (
+        <div className="text-center py-12 text-[#b0a8a0]">
+          <BookOpen className="w-14 h-14 mx-auto mb-4 opacity-30" />
+          <p className="font-bold text-[#7a7169]">팀을 찾을 과목을 선택하세요</p>
+        </div>
+      ) : isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-20 bg-[#f2eee8] rounded-2xl animate-pulse" />)}
+        </div>
+      ) : view === 'mine' && myGroups.length === 0 ? (
+        <div className="text-center py-12 text-[#b0a8a0]">
+          <Users className="w-14 h-14 mx-auto mb-4 opacity-30" />
+          <p className="font-bold text-[#7a7169]">아직 소속된 팀이 없습니다</p>
+          <button
+            onClick={() => onViewChange('find')}
+            className="btn-primary mt-5 inline-flex items-center gap-2"
+          >
+            <Search className="w-4 h-4" />
+            <span>팀 찾기</span>
+          </button>
+        </div>
+      ) : view === 'find' && courseGroups.length === 0 ? (
+        <div className="text-center py-12 text-[#b0a8a0]">
+          <Users className="w-14 h-14 mx-auto mb-4 opacity-30" />
+          <p className="font-bold text-[#7a7169]">아직 만들어진 팀이 없습니다</p>
+          <button
+            onClick={onCreateGroup}
+            className="btn-primary mt-5 inline-flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>팀 생성</span>
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {visibleGroups.map(group => (
+            view === 'mine' ? (
+              <GroupCard
+                key={group.id}
+                group={group}
+                isSelected={false}
+                onSelect={() => onSelectGroup(group.id)}
+              />
+            ) : (
+              <FindGroupCard
+                key={group.id}
+                group={group}
+                onSelect={() => onSelectGroup(group.id)}
+                onJoin={() => onJoinGroup(group.inviteCode)}
+              />
+            )
+          ))}
+        </div>
+      )}
     </div>
   )
 }
