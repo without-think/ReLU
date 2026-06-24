@@ -7,6 +7,8 @@ MERGE INTO users (student_id, full_name, major, role, created_at, updated_at) KE
 VALUES ('PROF002', '이교수', '소프트웨어학과', 'PROFESSOR', NOW(), NOW());
 MERGE INTO users (student_id, full_name, major, role, created_at, updated_at) KEY(student_id)
 VALUES ('PROF003', '박교수', '인공지능학과', 'PROFESSOR', NOW(), NOW());
+MERGE INTO users (student_id, full_name, major, role, created_at, updated_at) KEY(student_id)
+VALUES ('PROF004', '하태현', '컴퓨터공학과', 'PROFESSOR', NOW(), NOW());
 
 -- =============================================
 -- 과목 (courses) - 2026-1학기 강의시간표 기반
@@ -2573,6 +2575,7 @@ MERGE INTO sections (id, course_id, professor, section_number, day_of_week, star
 MERGE INTO sections (id, course_id, professor, section_number, day_of_week, start_time, end_time, room, created_at, updated_at) KEY(id) VALUES (1463, 561, '최준연', '001', NULL, NULL, NULL, '센B114', NOW(), NOW());
 MERGE INTO sections (id, course_id, professor, section_number, day_of_week, start_time, end_time, room, created_at, updated_at) KEY(id) VALUES (1464, 378, '하진용', '001', NULL, NULL, NULL, NULL, NOW(), NOW());
 MERGE INTO sections (id, course_id, professor, section_number, day_of_week, start_time, end_time, room, created_at, updated_at) KEY(id) VALUES (1465, 548, '하태현', '001', 'FRI', '13:30:00', '16:30:00', '센B110', NOW(), NOW());
+MERGE INTO sections (id, course_id, professor, section_number, day_of_week, start_time, end_time, room, created_at, updated_at) KEY(id) VALUES (2603, 548, '민병석', '001', 'FRI', '13:30:00', '19:30:00', '센B110', NOW(), NOW());
 MERGE INTO sections (id, course_id, professor, section_number, day_of_week, start_time, end_time, room, created_at, updated_at) KEY(id) VALUES (1466, 187, '김장겸', '001', 'TUE', '18:00:00', '19:00:00', '센B122', NOW(), NOW());
 MERGE INTO sections (id, course_id, professor, section_number, day_of_week, start_time, end_time, room, created_at, updated_at) KEY(id) VALUES (1467, 187, '하태현', '002', 'TUE', '18:00:00', '19:00:00', '센B122', NOW(), NOW());
 MERGE INTO sections (id, course_id, professor, section_number, day_of_week, start_time, end_time, room, created_at, updated_at) KEY(id) VALUES (1468, 187, '이수진', '003', 'TUE', '18:00:00', '19:00:00', '센B122', NOW(), NOW());
@@ -3730,7 +3733,7 @@ VALUES (9006, 'DEMO_006', '김무임', '컴퓨터공학과', '3', 'STUDENT', '20
 
 -- 데모 그룹 (ID 9001, 초대코드 DEMO01)
 MERGE INTO groups (id, invite_code, name, description, github_repo_url, project_deadline, ecampus_course_id, course_name, professor, created_by, roles_confirmed, created_at, updated_at) KEY(invite_code)
-VALUES (9001, 'DEMO01', '스마트 홈 관리 시스템', '스마트 홈 기기를 통합하여 효율적으로 관리하고 모니터링하는 웹 애플리케이션', NULL, '2024-05-29 09:00:00', NULL, '캡스톤디자인', '김민석', 9001, TRUE, '2024-05-01 09:00:00', '2024-05-01 09:00:00');
+VALUES (9001, 'DEMO01', '스마트 홈 관리 시스템', '스마트 홈 기기를 통합하여 효율적으로 관리하고 모니터링하는 웹 애플리케이션', NULL, '2024-05-29 09:00:00', NULL, 'CapstoneDesign (009960-001)', '하태현', 9001, TRUE, '2024-05-01 09:00:00', '2024-05-01 09:00:00');
 
 -- 데모 팀원 (group_id=9001)
 MERGE INTO group_members (id, group_id, user_id, role, temperature, preference_ready, additional_roles, leadership_willing, pr_confident, skill_backend, skill_frontend, skillai, skill_research, skill_present, self_contributing, self_interacting, self_keeping_on_track, self_expecting_quality, self_knowledge_skills, created_at, updated_at) KEY(id)

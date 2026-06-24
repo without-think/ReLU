@@ -594,6 +594,15 @@ public class GroupServiceImpl implements GroupService {
         return new PeerReviewSummaryResponse(scores);
     }
 
+    @Override
+    public List<PeerReviewDetailResponse> getPeerReviewDetails(Long groupId) {
+        getGroup(groupId);
+        List<PeerReview> allReviews = peerReviewRepository.findByGroupIdWithUsers(groupId);
+        return allReviews.stream()
+                .map(PeerReviewDetailResponse::new)
+                .collect(Collectors.toList());
+    }
+
     // --- Helpers ---
 
     private String generateUniqueInviteCode() {

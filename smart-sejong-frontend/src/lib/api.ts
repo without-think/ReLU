@@ -31,6 +31,7 @@ import type {
   MemberRole,
   PeerReviewRequest,
   PeerReviewSummary,
+  PeerReviewDetail,
   RecommendationRequest,
   RecommendationCombination,
   CopyRecommendationRequest,
@@ -630,6 +631,13 @@ class ApiClient {
   async getPeerReviewSummary(groupId: number): Promise<PeerReviewSummary> {
     const { data } = await this.client.get<{ status: number; data: PeerReviewSummary }>(
       `/api/groups/${groupId}/reviews`
+    )
+    return data.data
+  }
+
+  async getPeerReviewDetails(groupId: number): Promise<PeerReviewDetail[]> {
+    const { data } = await this.client.get<{ status: number; data: PeerReviewDetail[] }>(
+      `/api/groups/${groupId}/reviews/detail`
     )
     return data.data
   }

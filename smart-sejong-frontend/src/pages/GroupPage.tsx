@@ -21,7 +21,7 @@ import { GanttTab } from '@/components/group/GanttTab'
 import type {
   GroupSummary, GroupDetail, TeamMember, MemberRole, ProjectTask,
   TaskStatus, AvailabilitySlot, PeerReviewRequest,
-  EcampusCourse, Timetable, UpdateTaskRequest, MemberScore,
+  EcampusCourse, Timetable, UpdateTaskRequest, MemberScore, PeerReviewDetail,
 } from '@/types'
 
 // ─── constants ───────────────────────────────────────────────────────────────
@@ -120,7 +120,10 @@ export default function GroupPage() {
   )
   const [showCoursePassword, setShowCoursePassword] = useState(false)
   const [courseSearch, setCourseSearch] = useState('')
-  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(() => {
+    const id = searchParams.get('selected')
+    return id ? Number(id) : null
+  })
   const [activeTab, setActiveTab] = useState<Tab>('home')
   const [teamView, setTeamView] = useState<TeamView>(() => searchParams.get('tab') === 'find' ? 'find' : 'mine')
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -202,6 +205,8 @@ export default function GroupPage() {
   useEffect(() => {
     const nextView = searchParams.get('tab') === 'find' ? 'find' : 'mine'
     setTeamView(nextView)
+    const selectedId = searchParams.get('selected')
+    if (selectedId) setSelectedGroupId(Number(selectedId))
   }, [searchParams])
 
   // If roles just got confirmed, the active tab might not exist in the new set — keep it if valid, else snap to roles
@@ -255,8 +260,8 @@ export default function GroupPage() {
   const professorTabs: { id: Tab; label: string }[] = [
     { id: 'home', label: '팀 홈' },
     { id: 'roles', label: '역할 배분' },
-    { id: 'gantt', label: '간트 차트' },
     { id: 'review', label: '동료 평가' },
+    { id: 'ai', label: 'AI 분석' },
   ]
 
   // Before roles are confirmed, only show onboarding-relevant tabs
@@ -411,9 +416,10 @@ export default function GroupPage() {
                 view={teamView}
                 onViewChange={handleTeamViewChange}
                 onSelectCourse={setSelectedCourse}
-                onSelectGroup={(groupId) => { setSelectedGroupId(groupId); setActiveTab('roles') }}
+                onSelectGroup={(groupId) => { setSelectedGroupId(groupId); setActiveTab('home') }}
                 onJoinGroup={(inviteCode) => courseJoinMutation.mutate(inviteCode)}
                 onCreateGroup={() => setShowCreateModal(true)}
+                isProfessor={isProfessor}
               />
               {teamView === 'find' && selectedCourse && <CourseAssignmentPanel course={selectedCourse} />}
             </div>
@@ -458,7 +464,7 @@ export default function GroupPage() {
                 <RolesTab group={groupDetail} onRefresh={() => queryClient.invalidateQueries({ queryKey: ['group', selectedGroupId] })} />
               )}
               {activeTab === 'review' && (
-                <ReviewTab groupId={selectedGroupId} members={groupDetail.members} />
+                <ReviewTab groupId={selectedGroupId} members={groupDetail.members} isProfessor={isProfessor} />
               )}
               {activeTab === 'ai' && (
                 <AiAnalysisTab groupId={selectedGroupId} groupName={groupDetail.name} members={groupDetail.members} />
@@ -599,7 +605,7 @@ function FindGroupCard({ group, onSelect, onJoin }: {
   )
 }
 
-function TeamDashboard({ courses, selectedCourse, myGroups, courseGroups, myGroupsLoading, courseGroupsLoading, view, onViewChange, onSelectCourse, onSelectGroup, onJoinGroup, onCreateGroup }: {
+function TeamDashboard({ courses, selectedCourse, myGroups, courseGroups, myGroupsLoading, courseGroupsLoading, view, onViewChange, onSelectCourse, onSelectGroup, onJoinGroup, onCreateGroup, isProfessor }: {
   courses: EcampusCourse[]
   selectedCourse: EcampusCourse | null
   myGroups: GroupSummary[]
@@ -612,6 +618,7 @@ function TeamDashboard({ courses, selectedCourse, myGroups, courseGroups, myGrou
   onSelectGroup: (groupId: number) => void
   onJoinGroup: (inviteCode: string) => void
   onCreateGroup: () => void
+  isProfessor?: boolean
 }) {
   const isLoading = view === 'mine' ? myGroupsLoading : courseGroupsLoading
   const visibleGroups = view === 'mine' ? myGroups : courseGroups
@@ -621,23 +628,25 @@ function TeamDashboard({ courses, selectedCourse, myGroups, courseGroups, myGrou
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h2 className="text-xl font-extrabold tracking-tight text-[#25231f]">
-            {view === 'mine' ? '내가 소속된 팀' : '팀 찾기'}
+            {view === 'mine' ? (isProfessor ? '담당 팀 목록' : '내가 소속된 팀') : '팀 찾기'}
           </h2>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => onViewChange('mine')}
-            className={`tab-btn ${view === 'mine' ? 'tab-btn-active' : 'tab-btn-inactive'}`}
-          >
-            내 팀
-          </button>
-          <button
-            onClick={() => onViewChange('find')}
-            className={`tab-btn ${view === 'find' ? 'tab-btn-active' : 'tab-btn-inactive'}`}
-          >
-            팀 찾기
-          </button>
-        </div>
+        {!isProfessor && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => onViewChange('mine')}
+              className={`tab-btn ${view === 'mine' ? 'tab-btn-active' : 'tab-btn-inactive'}`}
+            >
+              내 팀
+            </button>
+            <button
+              onClick={() => onViewChange('find')}
+              className={`tab-btn ${view === 'find' ? 'tab-btn-active' : 'tab-btn-inactive'}`}
+            >
+              팀 찾기
+            </button>
+          </div>
+        )}
       </div>
 
       {view === 'find' && courses.length > 0 && (
@@ -670,14 +679,16 @@ function TeamDashboard({ courses, selectedCourse, myGroups, courseGroups, myGrou
       ) : view === 'mine' && myGroups.length === 0 ? (
         <div className="text-center py-12 text-[#b0a8a0]">
           <Users className="w-14 h-14 mx-auto mb-4 opacity-30" />
-          <p className="font-bold text-[#7a7169]">아직 소속된 팀이 없습니다</p>
-          <button
-            onClick={() => onViewChange('find')}
-            className="btn-primary mt-5 inline-flex items-center gap-2"
-          >
-            <Search className="w-4 h-4" />
-            <span>팀 찾기</span>
-          </button>
+          <p className="font-bold text-[#7a7169]">{isProfessor ? '담당 팀이 없습니다' : '아직 소속된 팀이 없습니다'}</p>
+          {!isProfessor && (
+            <button
+              onClick={() => onViewChange('find')}
+              className="btn-primary mt-5 inline-flex items-center gap-2"
+            >
+              <Search className="w-4 h-4" />
+              <span>팀 찾기</span>
+            </button>
+          )}
         </div>
       ) : view === 'find' && courseGroups.length === 0 ? (
         <div className="text-center py-12 text-[#b0a8a0]">
@@ -1709,9 +1720,103 @@ function TaskRow({ task, onSubmit, onApprove, onReject, onEdit, onDelete, onProg
   )
 }
 
+// ─── ProfessorReviewView ──────────────────────────────────────────────────────
+
+function ProfessorReviewView({ details, members }: { groupId: number; details: PeerReviewDetail[]; members: TeamMember[] }) {
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
+
+  const dimensions = [
+    { key: 'contributing' as const, label: '기여도' },
+    { key: 'interacting' as const, label: '소통' },
+    { key: 'keepingOnTrack' as const, label: '일정관리' },
+    { key: 'expectingQuality' as const, label: '품질추구' },
+    { key: 'knowledgeSkills' as const, label: '역량' },
+  ]
+
+  const reviewerIds = Array.from(new Set(details.map(d => d.reviewerId)))
+  const reviewerNames = members.filter(m => reviewerIds.includes(m.userId)).map(m => ({ id: m.userId, name: m.name }))
+
+  if (details.length === 0) {
+    return (
+      <div className="card">
+        <h3 className="font-bold text-[#25231f] mb-2">동료 평가 상세</h3>
+        <p className="text-sm text-[#b0a8a0]">아직 제출된 평가가 없습니다.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card space-y-6">
+      <div>
+        <h3 className="font-bold text-[#25231f]">동료 평가 상세 (교수 전용)</h3>
+        <p className="text-xs text-[#b0a8a0]">각 학생이 다른 학생들에게 제출한 평가 내용입니다</p>
+      </div>
+
+      {reviewerNames.map(reviewer => {
+        const myReviews = details.filter(d => d.reviewerId === reviewer.id)
+        return (
+          <div key={reviewer.id} className="border border-[#e7e0d7] rounded-2xl overflow-hidden">
+            <button
+              className="w-full flex items-center justify-between px-4 py-3 bg-[#f9f6f1] hover:bg-[#f2eee8] transition-colors"
+              onClick={() => setExpandedKey(prev => prev === String(reviewer.id) ? null : String(reviewer.id))}
+            >
+              <span className="font-bold text-[#25231f] text-sm">{reviewer.name} 의 평가</span>
+              <span className="text-xs text-[#b0a8a0]">{myReviews.length}명 평가함</span>
+            </button>
+
+            {expandedKey === String(reviewer.id) && (
+              <div className="divide-y divide-[#e7e0d7]">
+                {myReviews.map(d => {
+                  const key = `${d.reviewerId}-${d.revieweeId}`
+                  return (
+                    <div key={key} className="p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-[#25231f]">→ {d.revieweeName}</span>
+                        {d.suspectedFreeRider && (
+                          <span className="text-xs bg-[#6f4141]/12 text-[#6f4141] px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" />무임승차 의심
+                          </span>
+                        )}
+                        <span className="ml-auto text-xs text-[#7a7169]">기여도 {d.contributionScore}점</span>
+                      </div>
+
+                      <div className="grid grid-cols-5 gap-1">
+                        {dimensions.map(dim => (
+                          <div key={dim.key} className="text-center">
+                            <div className="text-xs text-[#b0a8a0] mb-1">{dim.label}</div>
+                            <div className="flex justify-center gap-0.5">
+                              {[1, 2, 3, 4, 5].map(v => (
+                                <div
+                                  key={v}
+                                  className={`w-3 h-3 rounded-full ${d[dim.key] >= v ? 'bg-[#4a8768]' : 'bg-[#e7e0d7]'}`}
+                                />
+                              ))}
+                            </div>
+                            <div className="text-xs font-bold text-[#25231f] mt-0.5">{d[dim.key]}/5</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {d.comment && (
+                        <p className="text-xs text-[#7a7169] bg-[#f9f6f1] rounded-xl px-3 py-2 leading-relaxed">
+                          "{d.comment}"
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── ReviewTab ────────────────────────────────────────────────────────────────
 
-function ReviewTab({ groupId, members }: { groupId: number; members: TeamMember[] }) {
+function ReviewTab({ groupId, members, isProfessor }: { groupId: number; members: TeamMember[]; isProfessor?: boolean }) {
   const queryClient = useQueryClient()
   const [selected, setSelected] = useState<TeamMember | null>(null)
   const [scores, setScores] = useState({
@@ -1728,6 +1833,16 @@ function ReviewTab({ groupId, members }: { groupId: number; members: TeamMember[
     queryKey: ['reviews', groupId],
     queryFn: () => api.getPeerReviewSummary(groupId),
   })
+
+  const { data: details } = useQuery({
+    queryKey: ['reviews-detail', groupId],
+    queryFn: () => api.getPeerReviewDetails(groupId),
+    enabled: !!isProfessor,
+  })
+
+  if (isProfessor) {
+    return <ProfessorReviewView groupId={groupId} details={details ?? []} members={members} />
+  }
 
   const submitMutation = useMutation({
     mutationFn: () => {

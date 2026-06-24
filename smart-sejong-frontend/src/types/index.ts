@@ -328,6 +328,21 @@ export interface PeerReviewSummary {
   memberScores: MemberScore[]
 }
 
+export interface PeerReviewDetail {
+  reviewerId: number
+  reviewerName: string
+  revieweeId: number
+  revieweeName: string
+  contributionScore: number
+  contributing: number
+  interacting: number
+  keepingOnTrack: number
+  expectingQuality: number
+  knowledgeSkills: number
+  comment: string
+  suspectedFreeRider: boolean
+}
+
 // Legacy aliases kept for backward compatibility
 export interface Group {
   id: number

@@ -34,4 +34,5 @@ public interface GroupService {
 
     void submitPeerReview(Long groupId, Long userId, SubmitPeerReviewRequest request);
     PeerReviewSummaryResponse getPeerReviewSummary(Long groupId);
+    List<PeerReviewDetailResponse> getPeerReviewDetails(Long groupId);
 }

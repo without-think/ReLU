@@ -233,4 +233,10 @@ public class GroupController {
             @PathVariable Long groupId) {
         return CommonResponse.success(groupService.getPeerReviewSummary(groupId));
     }
+
+    @GetMapping("/{groupId}/reviews/detail")
+    public CommonResponse<List<PeerReviewDetailResponse>> getPeerReviewDetails(
+            @PathVariable Long groupId) {
+        return CommonResponse.success(groupService.getPeerReviewDetails(groupId));
+    }
 }

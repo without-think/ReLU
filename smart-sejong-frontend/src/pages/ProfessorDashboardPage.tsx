@@ -5,12 +5,17 @@ import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import {
   Users, BookOpen, ChevronRight, AlertTriangle,
-  Calendar, CheckCircle2, BarChart3, AlertCircle,
+  Calendar, CheckCircle2, BarChart3, AlertCircle, Thermometer,
 } from 'lucide-react'
 import { parseISO, differenceInDays } from 'date-fns'
-import type { GroupSummary, ProjectTask, ProfessorSection } from '@/types'
+import type { GroupSummary, ProjectTask, ProfessorSection, MemberScore } from '@/types'
 
 interface TaskWithGroup extends ProjectTask {
+  groupId: number
+  groupName: string
+}
+
+interface FreeRider extends MemberScore {
   groupId: number
   groupName: string
 }
@@ -21,6 +26,19 @@ function getTeamStatus(progress: number, daysLeft: number | null) {
   if (daysLeft !== null && daysLeft <= 3 && progress < 50) return { label: '지연 위험', color: 'text-[#6f4141]', bg: 'bg-[#6f4141]/10' }
   if (progress < 30) return { label: '시작 단계', color: 'text-[#31465d]', bg: 'bg-[#31465d]/10' }
   return { label: '정상 진행', color: 'text-[#4a8768]', bg: 'bg-[#4a8768]/10' }
+}
+
+function calcDelayStats(tasks: TaskWithGroup[]) {
+  const done = tasks.filter(t => t.status !== 'PENDING')
+  const lateRate = done.length > 0
+    ? Math.round((tasks.filter(t => t.status === 'LATE').length / done.length) * 100)
+    : 0
+  const atRisk = tasks.filter(t => {
+    if (t.status !== 'PENDING' || !t.deadline) return false
+    const d = differenceInDays(parseISO(t.deadline), new Date())
+    return d >= 0 && d <= 3 && t.progress < 60
+  })
+  return { lateRate, atRiskCount: atRisk.length }
 }
 
 export default function ProfessorDashboardPage() {
@@ -59,13 +77,33 @@ export default function ProfessorDashboardPage() {
   const { data: allTasks = [] } = useQuery<TaskWithGroup[]>({
     queryKey: ['all-tasks', groups.map(g => g.id)],
     queryFn: async () => {
-      const taskLists = await Promise.all(
+      const results = await Promise.all(
         groups.map(async (group) => {
           const tasks = await api.getTasks(group.id)
           return tasks.map(t => ({ ...t, groupId: group.id, groupName: group.name }))
         })
       )
-      return taskLists.flat()
+      return results.flat()
+    },
+    enabled: groups.length > 0,
+  })
+
+  const { data: freeRiders = [] } = useQuery<FreeRider[]>({
+    queryKey: ['all-free-riders', groups.map(g => g.id)],
+    queryFn: async () => {
+      const results = await Promise.all(
+        groups.map(async (group) => {
+          try {
+            const summary = await api.getPeerReviewSummary(group.id)
+            return summary.memberScores
+              .filter(ms => ms.suspectedFreeRider)
+              .map(ms => ({ ...ms, groupId: group.id, groupName: group.name }))
+          } catch {
+            return []
+          }
+        })
+      )
+      return results.flat()
     },
     enabled: groups.length > 0,
   })
@@ -78,10 +116,10 @@ export default function ProfessorDashboardPage() {
       const avgProgress = totalTasks > 0
         ? Math.round(groupTasks.reduce((sum, t) => sum + t.progress, 0) / totalTasks)
         : 0
-
       const daysLeft = group.projectDeadline
         ? differenceInDays(parseISO(group.projectDeadline), new Date())
         : null
+      const { lateRate, atRiskCount } = calcDelayStats(groupTasks)
 
       return {
         ...group,
@@ -89,18 +127,18 @@ export default function ProfessorDashboardPage() {
         completedTasks,
         avgProgress,
         daysLeft,
-        status: getTeamStatus(avgProgress, daysLeft)
+        lateRate,
+        atRiskCount,
+        status: getTeamStatus(avgProgress, daysLeft),
       }
     })
   }, [selectedCourseGroups, allTasks])
 
-  const atRiskTeams = teamStats.filter(t => t.status.label === '지연 위험')
-
-  const overallStats = useMemo(() => {
-    const totalStudents = groups.reduce((sum, g) => sum + g.memberCount, 0)
-    const totalTeams = groups.length
-    return { totalStudents, totalTeams, atRiskCount: atRiskTeams.length }
-  }, [groups, atRiskTeams])
+  const overallStats = useMemo(() => ({
+    totalStudents: groups.reduce((sum, g) => sum + g.memberCount, 0),
+    totalTeams: groups.length,
+    freeRiderCount: freeRiders.length,
+  }), [groups, freeRiders])
 
   return (
     <div className="space-y-6">
@@ -131,9 +169,7 @@ export default function ProfessorDashboardPage() {
                   key={course.name}
                   onClick={() => setSelectedCourse(isSelected ? null : course.name)}
                   className={`glass-item text-left p-4 rounded-xl border-2 transition-all ${
-                    isSelected
-                      ? '!border-[#4a8768] bg-[#4a8768]/10'
-                      : 'hover:!border-[#4a8768]/50'
+                    isSelected ? '!border-[#4a8768] bg-[#4a8768]/10' : 'hover:!border-[#4a8768]/50'
                   }`}
                 >
                   <p className="font-bold text-sm text-[#25231f] mb-1 leading-snug">{course.name}</p>
@@ -186,14 +222,14 @@ export default function ProfessorDashboardPage() {
               <AlertCircle className="w-5 h-5 text-[#6f4141]" />
             </div>
             <div>
-              <p className="text-2xl font-extrabold text-[#6f4141]">{overallStats.atRiskCount}</p>
-              <p className="text-xs text-[#7a7169]">주의 필요</p>
+              <p className="text-2xl font-extrabold text-[#6f4141]">{overallStats.freeRiderCount}</p>
+              <p className="text-xs text-[#7a7169]">무임승차 의심</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 팀 현황 + 지연 위험 */}
+      {/* 팀 현황 + 무임승차 패널 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 팀별 진행 현황 */}
         <div className="lg:col-span-2">
@@ -222,18 +258,34 @@ export default function ProfessorDashboardPage() {
                     onClick={() => navigate(`/group?selected=${team.id}`)}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-bold text-[#25231f]">{team.name}</h3>
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${team.status.bg} ${team.status.color}`}>
                           {team.status.label}
                         </span>
+                        {/* 지연 예측 지표 */}
+                        {team.lateRate > 0 && (
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                            team.lateRate >= 40
+                              ? 'bg-[#6f4141]/12 text-[#6f4141]'
+                              : 'bg-[#a8793d]/12 text-[#a8793d]'
+                          }`}>
+                            지연율 {team.lateRate}%
+                          </span>
+                        )}
+                        {team.atRiskCount > 0 && (
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#6f4141]/12 text-[#6f4141] flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            마감 위험 {team.atRiskCount}건
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-[#7a7169]">
+                      <div className="flex items-center gap-2 text-xs text-[#7a7169] shrink-0">
                         <Users className="w-3 h-3" />
                         <span>{team.memberCount}명</span>
                         {team.daysLeft !== null && (
                           <>
-                            <Calendar className="w-3 h-3 ml-2" />
+                            <Calendar className="w-3 h-3 ml-1" />
                             <span className={team.daysLeft <= 3 ? 'text-[#6f4141] font-bold' : ''}>
                               {team.daysLeft > 0 ? `D-${team.daysLeft}` : team.daysLeft === 0 ? 'D-Day' : '마감됨'}
                             </span>
@@ -261,36 +313,39 @@ export default function ProfessorDashboardPage() {
           </div>
         </div>
 
-        {/* 지연 위험 팀 */}
+        {/* 무임승차 의심 */}
         <div className="lg:col-span-1">
           <div className="card">
             <div className="flex items-center gap-2 mb-4">
               <span className="w-8 h-8 rounded-xl bg-[#6f4141]/10 flex items-center justify-center">
                 <AlertTriangle className="w-4 h-4 text-[#6f4141]" />
               </span>
-              <h2 className="font-bold text-[#25231f]">지연 위험 팀</h2>
+              <h2 className="font-bold text-[#25231f]">무임승차 의심</h2>
             </div>
 
-            {atRiskTeams.length === 0 ? (
+            {freeRiders.length === 0 ? (
               <div className="text-center py-6">
                 <CheckCircle2 className="w-10 h-10 text-[#4a8768]/30 mx-auto mb-2" />
                 <p className="text-sm text-[#b0a8a0]">특이사항 없음</p>
               </div>
             ) : (
               <div className="space-y-2">
-                {atRiskTeams.slice(0, 5).map(team => (
+                {freeRiders.map((fr, i) => (
                   <div
-                    key={team.id}
+                    key={i}
                     className="p-3 rounded-xl bg-[#6f4141]/5 border border-[#6f4141]/20 cursor-pointer hover:border-[#6f4141]/40 transition-colors"
-                    onClick={() => navigate(`/group?selected=${team.id}`)}
+                    onClick={() => navigate(`/group?selected=${fr.groupId}`)}
                   >
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-[#6f4141]" />
-                      <span className="font-bold text-sm text-[#25231f]">{team.name}</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Thermometer className="w-4 h-4 text-[#6f4141]" />
+                        <span className="font-bold text-sm text-[#25231f]">{fr.name}</span>
+                      </div>
+                      <span className="text-xs font-bold text-[#6f4141]">
+                        {fr.avgContributionScore.toFixed(1)}점
+                      </span>
                     </div>
-                    <p className="text-xs text-[#7a7169] mt-1">
-                      진행률 {team.avgProgress}% · D-{team.daysLeft}
-                    </p>
+                    <p className="text-xs text-[#7a7169] mt-1 truncate">{fr.groupName}</p>
                   </div>
                 ))}
               </div>
