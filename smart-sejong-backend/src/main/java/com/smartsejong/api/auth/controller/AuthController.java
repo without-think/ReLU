@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -83,7 +84,12 @@ public class AuthController {
     public ResponseEntity<CommonResponse<Void>> logout(
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
-        authService.logout(userDetails.getUserId());
-        return ResponseEntity.ok(CommonResponse.success("로그아웃 되었습니다.", null));
+                if (userDetails == null) {
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                        .body(CommonResponse.success("인증이 필요합니다.", null));
+                }
+
+                authService.logout(userDetails.getUserId());
+                return ResponseEntity.ok(CommonResponse.success("로그아웃 되었습니다.", null));
     }
 }

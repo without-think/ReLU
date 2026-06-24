@@ -36,6 +36,7 @@ import type {
   CopyRecommendationRequest,
   EcampusCourse,
   EcampusRequest,
+  UpdatePreferenceRequest,
 } from '@/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
@@ -496,6 +497,36 @@ class ApiClient {
     const { data } = await this.client.put<{ status: number; data: TeamMember }>(
       `/api/groups/${groupId}/members/${memberId}/role`,
       { role }
+    )
+    return data.data
+  }
+
+  async updatePreference(groupId: number, request: UpdatePreferenceRequest): Promise<TeamMember> {
+    const { data } = await this.client.put<{ status: number; data: TeamMember }>(
+      `/api/groups/${groupId}/members/preference`,
+      request
+    )
+    return data.data
+  }
+
+  async markReady(groupId: number): Promise<TeamMember> {
+    const { data } = await this.client.post<{ status: number; data: TeamMember }>(
+      `/api/groups/${groupId}/members/ready`
+    )
+    return data.data
+  }
+
+  async confirmRoles(groupId: number): Promise<GroupDetail> {
+    const { data } = await this.client.post<{ status: number; data: GroupDetail }>(
+      `/api/groups/${groupId}/confirm-roles`
+    )
+    return data.data
+  }
+
+  async setAdditionalRoles(groupId: number, memberId: number, additionalRoles: MemberRole[]): Promise<TeamMember> {
+    const { data } = await this.client.put<{ status: number; data: TeamMember }>(
+      `/api/groups/${groupId}/members/${memberId}/additional-roles`,
+      { additionalRoles }
     )
     return data.data
   }

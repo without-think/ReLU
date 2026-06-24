@@ -17,6 +17,8 @@ public class GroupDetailResponse {
     private final String ecampusCourseId;
     private final String courseName;
     private final String professor;
+    private final boolean rolesConfirmed;
+    private final Long creatorId;
     private final List<MemberResponse> members;
 
     public GroupDetailResponse(Group group, List<MemberResponse> members) {
@@ -29,6 +31,8 @@ public class GroupDetailResponse {
         this.ecampusCourseId = group.getEcampusCourseId();
         this.courseName = group.getCourseName();
         this.professor = group.getProfessor();
+        this.rolesConfirmed = group.isRolesConfirmed();
+        this.creatorId = group.getCreatedBy() != null ? group.getCreatedBy().getId() : null;
         this.members = members;
     }
 }

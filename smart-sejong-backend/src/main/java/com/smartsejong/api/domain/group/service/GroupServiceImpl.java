@@ -176,6 +176,114 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
+    @Transactional
+    public MemberResponse updatePreference(Long groupId, Long userId, UpdatePreferenceRequest request) {
+        Group group = getGroup(groupId);
+        User user = getUser(userId);
+        GroupMember member = groupMemberRepository.findByGroupAndUser(group, user)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+        member.updatePreference(
+                request.getPreferredRole(), request.isLeadershipWilling(), request.isPrConfident(),
+                request.getSkillBackend(), request.getSkillFrontend(), request.getSkillAI(),
+                request.getSkillResearch(), request.getSkillPresent());
+        return new MemberResponse(member);
+    }
+
+    @Override
+    @Transactional
+    public MemberResponse markReady(Long groupId, Long userId) {
+        Group group = getGroup(groupId);
+        User user = getUser(userId);
+        GroupMember member = groupMemberRepository.findByGroupAndUser(group, user)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+        member.markReady();
+        return new MemberResponse(member);
+    }
+
+    @Override
+    @Transactional
+    public GroupDetailResponse confirmRoles(Long groupId, Long userId) {
+        Group group = getGroup(groupId);
+        assertLeader(group, getUser(userId));
+
+        List<GroupMember> members = groupMemberRepository.findByGroupIdWithUser(groupId);
+
+        // Auto-assign roles: sort members by preferred role skill, handle multi-role if needed
+        List<MemberRole> roleSlots = new ArrayList<>(Arrays.asList(
+                MemberRole.BACKEND, MemberRole.FRONTEND, MemberRole.AI,
+                MemberRole.RESEARCHER, MemberRole.PRESENTER));
+
+        // Assign preferred roles first
+        for (GroupMember m : members) {
+            if (m.getRole() == MemberRole.LEADER) continue;
+            if (m.getPreferredRole() != null && m.getRole() == MemberRole.UNASSIGNED) {
+                m.assignRole(m.getPreferredRole());
+                roleSlots.remove(m.getPreferredRole());
+            }
+        }
+
+        // Distribute remaining slots — multi-assign when members < roles
+        List<GroupMember> unassigned = members.stream()
+                .filter(m -> m.getRole() == MemberRole.UNASSIGNED)
+                .collect(Collectors.toList());
+
+        // Fill remaining slots as additionalRoles on existing members if no unassigned left
+        int slotIdx = 0;
+        for (GroupMember m : unassigned) {
+            if (slotIdx < roleSlots.size()) {
+                m.assignRole(roleSlots.get(slotIdx++));
+            }
+        }
+        // Remaining roles: distribute as additionalRoles to members with matching skills
+        while (slotIdx < roleSlots.size()) {
+            MemberRole remaining = roleSlots.get(slotIdx++);
+            GroupMember best = members.stream()
+                    .filter(m -> m.getRole() != MemberRole.UNASSIGNED && m.getRole() != MemberRole.LEADER)
+                    .max(Comparator.comparingInt(m -> skillFor(m, remaining)))
+                    .orElse(null);
+            if (best != null) {
+                String existing = best.getAdditionalRoles();
+                String updated = (existing == null || existing.isBlank())
+                        ? remaining.name()
+                        : existing + "," + remaining.name();
+                best.setAdditionalRoles(updated);
+            }
+        }
+
+        group.confirmRoles();
+        List<MemberResponse> memberResponses = groupMemberRepository.findByGroupIdWithUser(groupId).stream()
+                .map(MemberResponse::new)
+                .collect(Collectors.toList());
+        return new GroupDetailResponse(group, memberResponses);
+    }
+
+    @Override
+    @Transactional
+    public MemberResponse setAdditionalRoles(Long groupId, Long memberId, Long userId, SetAdditionalRolesRequest request) {
+        Group group = getGroup(groupId);
+        assertLeader(group, getUser(userId));
+        GroupMember target = groupMemberRepository.findById(memberId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+        String encoded = request.getAdditionalRoles() == null ? null :
+                request.getAdditionalRoles().stream()
+                        .map(Enum::name)
+                        .collect(Collectors.joining(","));
+        target.setAdditionalRoles(encoded);
+        return new MemberResponse(target);
+    }
+
+    private int skillFor(GroupMember m, MemberRole role) {
+        return switch (role) {
+            case BACKEND -> m.getSkillBackend();
+            case FRONTEND -> m.getSkillFrontend();
+            case AI -> m.getSkillAI();
+            case RESEARCHER -> m.getSkillResearch();
+            case PRESENTER -> m.getSkillPresent();
+            default -> 0;
+        };
+    }
+
+    @Override
     public List<MemberResponse> getMembers(Long groupId) {
         getGroup(groupId);
         return groupMemberRepository.findByGroupIdWithUser(groupId).stream()

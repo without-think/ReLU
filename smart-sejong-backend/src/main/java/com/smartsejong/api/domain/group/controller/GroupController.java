@@ -38,6 +38,9 @@ public class GroupController {
     public CommonResponse<List<GroupSummaryResponse>> getMyGroups(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestParam(required = false) String ecampusCourseId) {
+        if (userDetails == null) {
+            return CommonResponse.success(java.util.Collections.emptyList());
+        }
         return CommonResponse.success(groupService.getMyGroups(userDetails.getUserId(), ecampusCourseId));
     }
 
@@ -96,6 +99,37 @@ public class GroupController {
     public CommonResponse<List<MemberResponse>> getMembers(
             @PathVariable Long groupId) {
         return CommonResponse.success(groupService.getMembers(groupId));
+    }
+
+    @PutMapping("/{groupId}/members/preference")
+    public CommonResponse<MemberResponse> updatePreference(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long groupId,
+            @RequestBody UpdatePreferenceRequest request) {
+        return CommonResponse.success(groupService.updatePreference(groupId, userDetails.getUserId(), request));
+    }
+
+    @PostMapping("/{groupId}/members/ready")
+    public CommonResponse<MemberResponse> markReady(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long groupId) {
+        return CommonResponse.success(groupService.markReady(groupId, userDetails.getUserId()));
+    }
+
+    @PostMapping("/{groupId}/confirm-roles")
+    public CommonResponse<GroupDetailResponse> confirmRoles(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long groupId) {
+        return CommonResponse.success(groupService.confirmRoles(groupId, userDetails.getUserId()));
+    }
+
+    @PutMapping("/{groupId}/members/{memberId}/additional-roles")
+    public CommonResponse<MemberResponse> setAdditionalRoles(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long groupId,
+            @PathVariable Long memberId,
+            @RequestBody SetAdditionalRolesRequest request) {
+        return CommonResponse.success(groupService.setAdditionalRoles(groupId, memberId, userDetails.getUserId(), request));
     }
 
     @PutMapping("/{groupId}/members/{memberId}/role")

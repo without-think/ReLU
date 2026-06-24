@@ -158,6 +158,8 @@ export interface GroupDetail {
   ecampusCourseId: string | null
   courseName: string | null
   professor: string | null
+  rolesConfirmed: boolean
+  creatorId: number | null
   members: TeamMember[]
 }
 
@@ -169,6 +171,34 @@ export interface TeamMember {
   major: string
   role: MemberRole
   temperature: number
+  preferenceReady: boolean
+  additionalRoles: string | null
+  // Preference
+  preferredRole: MemberRole | null
+  leadershipWilling: boolean
+  prConfident: boolean
+  skillBackend: number
+  skillFrontend: number
+  skillAI: number
+  skillResearch: number
+  skillPresent: number
+  // Self-rating (accumulated from peer reviews)
+  selfContributing: number
+  selfInteracting: number
+  selfKeepingOnTrack: number
+  selfExpectingQuality: number
+  selfKnowledgeSkills: number
+}
+
+export interface UpdatePreferenceRequest {
+  preferredRole: MemberRole | null
+  leadershipWilling: boolean
+  prConfident: boolean
+  skillBackend: number
+  skillFrontend: number
+  skillAI: number
+  skillResearch: number
+  skillPresent: number
 }
 
 export interface CreateGroupRequest {

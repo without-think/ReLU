@@ -48,6 +48,9 @@ public class Group extends BaseTimeEntity {
     @JoinColumn(name = "created_by")
     private User createdBy;
 
+    @Column(nullable = false)
+    private boolean rolesConfirmed = false;
+
     @Builder
     public Group(String inviteCode, String name, String description, String githubRepoUrl, LocalDateTime projectDeadline,
                  String ecampusCourseId, String courseName, String professor, User createdBy) {
@@ -61,6 +64,8 @@ public class Group extends BaseTimeEntity {
         this.professor = professor;
         this.createdBy = createdBy;
     }
+
+    public void confirmRoles() { this.rolesConfirmed = true; }
 
     public void updateSettings(String name, String description, String githubRepoUrl, LocalDateTime projectDeadline) {
         if (name != null) this.name = name;

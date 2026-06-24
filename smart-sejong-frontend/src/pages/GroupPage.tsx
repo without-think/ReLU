@@ -424,7 +424,7 @@ export default function GroupPage() {
                 <AvailabilityTab groupId={selectedGroupId} members={groupDetail.members} />
               )}
               {activeTab === 'roles' && (
-                <RolesTab groupId={selectedGroupId} members={groupDetail.members} onRefresh={() => queryClient.invalidateQueries({ queryKey: ['group', selectedGroupId] })} />
+                <RolesTab group={groupDetail} onRefresh={() => queryClient.invalidateQueries({ queryKey: ['group', selectedGroupId] })} />
               )}
               {activeTab === 'tasks' && (
                 <TasksTab groupId={selectedGroupId} members={groupDetail.members} />
@@ -987,72 +987,318 @@ function AvailabilityTab({ groupId, members }: { groupId: number; members: TeamM
 
 // ─── RolesTab ──────────────────────────────────────────────────────────────────
 
-function RolesTab({ groupId, members, onRefresh }: {
-  groupId: number; members: TeamMember[]; onRefresh: () => void
+type SkillKey = 'skillBackend' | 'skillFrontend' | 'skillAI' | 'skillResearch' | 'skillPresent'
+
+const SKILL_PARTS: { key: SkillKey; label: string; role: MemberRole }[] = [
+  { key: 'skillBackend',  label: '백엔드',  role: 'BACKEND' },
+  { key: 'skillFrontend', label: '프론트',  role: 'FRONTEND' },
+  { key: 'skillAI',       label: 'AI/ML',   role: 'AI' },
+  { key: 'skillResearch', label: '자료조사', role: 'RESEARCHER' },
+  { key: 'skillPresent',  label: '발표',    role: 'PRESENTER' },
+]
+
+function SkillDots({ value, max = 5 }: { value: number; max?: number }) {
+  return (
+    <div className="flex gap-0.5">
+      {Array.from({ length: max }, (_, i) => (
+        <div
+          key={i}
+          className={`w-2 h-2 rounded-full ${i < value ? 'bg-[#4a8768]' : 'bg-[#e7e0d7]'}`}
+        />
+      ))}
+    </div>
+  )
+}
+
+// Preferred roles exclude LEADER (creator is always leader)
+const PREFERRED_ROLE_OPTIONS: MemberRole[] = ['BACKEND', 'FRONTEND', 'AI', 'RESEARCHER', 'PRESENTER']
+
+function RolesTab({ group, onRefresh }: {
+  group: GroupDetail; onRefresh: () => void
 }) {
-  const roles: MemberRole[] = ['LEADER', 'RESEARCHER', 'PRESENTER', 'BACKEND', 'FRONTEND', 'AI', 'UNASSIGNED']
+  const queryClient = useQueryClient()
+  const currentUser = useAuthStore(s => s.user)
+  const { members, rolesConfirmed, creatorId } = group
+  const myMember = members.find(m => m.studentId === currentUser?.student_id)
+  const isCreator = myMember?.userId === creatorId
+  const allReady = members.every(m => m.preferenceReady)
+
+  const allRoles: MemberRole[] = ['LEADER', 'RESEARCHER', 'PRESENTER', 'BACKEND', 'FRONTEND', 'AI']
+
+  const [pref, setPref] = useState({
+    preferredRole: (myMember?.preferredRole ?? null) as MemberRole | null,
+    leadershipWilling: myMember?.leadershipWilling ?? false,
+    prConfident: myMember?.prConfident ?? false,
+    skillBackend:  myMember?.skillBackend  ?? 3,
+    skillFrontend: myMember?.skillFrontend ?? 3,
+    skillAI:       myMember?.skillAI       ?? 3,
+    skillResearch: myMember?.skillResearch ?? 3,
+    skillPresent:  myMember?.skillPresent  ?? 3,
+  })
+
+  const readyMutation = useMutation({
+    mutationFn: async () => {
+      await api.updatePreference(group.id, pref)
+      return api.markReady(group.id)
+    },
+    onSuccess: () => {
+      toast.success('준비 완료! 팀장이 확정할 때까지 기다려주세요.')
+      queryClient.invalidateQueries({ queryKey: ['group', group.id] })
+      onRefresh()
+    },
+  })
+
+  const confirmMutation = useMutation({
+    mutationFn: () => api.confirmRoles(group.id),
+    onSuccess: () => {
+      toast.success('역할이 확정되었습니다!')
+      queryClient.invalidateQueries({ queryKey: ['group', group.id] })
+      onRefresh()
+    },
+  })
 
   const assignMutation = useMutation({
     mutationFn: ({ memberId, role }: { memberId: number; role: MemberRole }) =>
-      api.assignRole(groupId, memberId, role),
+      api.assignRole(group.id, memberId, role),
     onSuccess: () => { toast.success('역할이 변경되었습니다.'); onRefresh() },
   })
 
-  const radarData = (member: TeamMember) => [
-    { subject: '온도', value: Math.min(member.temperature, 42) / 42 * 100 },
-    { subject: '기여', value: 70 },
-    { subject: '소통', value: 75 },
-    { subject: '일정', value: 80 },
-    { subject: '품질', value: 65 },
+  const radarData = (m: TeamMember) => [
+    { subject: '기여', value: m.selfContributing * 20 },
+    { subject: '소통', value: m.selfInteracting * 20 },
+    { subject: '일정', value: m.selfKeepingOnTrack * 20 },
+    { subject: '품질', value: m.selfExpectingQuality * 20 },
+    { subject: '역량', value: m.selfKnowledgeSkills * 20 },
   ]
 
   return (
-    <div className="card space-y-4">
-      <div>
-        <h3 className="font-bold text-[#25231f]">역할 배분</h3>
-        <p className="text-xs text-[#b0a8a0]">팀장이 각 팀원의 역할을 지정합니다</p>
-      </div>
-
-      <div className="grid gap-4">
-        {members.map(m => (
-          <div key={m.userId} className="flex items-center gap-4 p-3.5 border border-[#e7e0d7] rounded-2xl bg-white/60">
-            {/* Radar chart */}
-            <div className="w-20 h-20 flex-shrink-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart data={radarData(m)} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
-                  <PolarGrid />
-                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 8 }} />
-                  <Radar dataKey="value" fill="#4a8768" fillOpacity={0.45} stroke="#4a8768" />
-                </RadarChart>
-              </ResponsiveContainer>
+    <div className="space-y-4">
+      {/* ── 내 선호도 입력 카드 (rolesConfirmed 전에만 표시) ── */}
+      {myMember && !rolesConfirmed && (
+        <div className="card space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-[#25231f]">내 선호도 입력</h3>
+              <p className="text-xs text-[#b0a8a0]">
+                {myMember.preferenceReady
+                  ? '✓ 준비 완료 — 팀장이 확정을 누르면 역할이 배분됩니다'
+                  : '선호 조건을 입력하고 준비 완료를 눌러주세요'}
+              </p>
             </div>
-
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-bold text-[#25231f]">{m.name}</span>
-                <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${ROLE_COLORS[m.role]}`}>
-                  {ROLE_LABELS[m.role]}
-                </span>
-                <span className={`text-sm font-extrabold ${tempColor(m.temperature)}`}>
-                  {m.temperature.toFixed(1)}°
-                </span>
-              </div>
-              <p className="text-xs text-[#b0a8a0]">{m.major} · {m.studentId}</p>
-            </div>
-
-            {/* Role selector */}
-            <select
-              className="input text-sm py-1.5 w-32"
-              value={m.role}
-              onChange={e => assignMutation.mutate({ memberId: m.memberId, role: e.target.value as MemberRole })}
-            >
-              {roles.map(r => (
-                <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-              ))}
-            </select>
+            {myMember.preferenceReady && (
+              <span className="px-3 py-1 rounded-full bg-[#4a8768]/12 text-[#4a8768] text-xs font-bold">준비됨</span>
+            )}
           </div>
-        ))}
+
+          {/* 선호도 폼 — 준비 완료 전에만 입력 가능 */}
+          {!myMember.preferenceReady && (
+            <div className="space-y-5 border-t border-[#e7e0d7] pt-4">
+              {/* 선호 역할 (LEADER 제외) */}
+              <div>
+                <p className="text-sm font-bold text-[#25231f] mb-2">선호 역할</p>
+                <div className="flex flex-wrap gap-2">
+                  {PREFERRED_ROLE_OPTIONS.map(r => (
+                    <button
+                      key={r}
+                      onClick={() => setPref(p => ({ ...p, preferredRole: p.preferredRole === r ? null : r }))}
+                      className={`px-3.5 py-1.5 rounded-full text-sm font-bold border-2 transition-all ${
+                        pref.preferredRole === r
+                          ? 'border-[#4a8768] bg-[#4a8768]/10 text-[#4a8768]'
+                          : 'border-[#e7e0d7] text-[#7a7169] hover:border-[#d0c8bf]'
+                      }`}
+                    >
+                      {ROLE_LABELS[r]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 리더십 / PR 여부 */}
+              <div>
+                <p className="text-sm font-bold text-[#25231f] mb-2">추가 사항</p>
+                <div className="flex gap-3 flex-wrap">
+                  {[
+                    { key: 'leadershipWilling' as const, label: '리더 역할 가능' },
+                    { key: 'prConfident' as const, label: 'PR/발표 자신 있음' },
+                  ].map(item => (
+                    <button
+                      key={item.key}
+                      onClick={() => setPref(p => ({ ...p, [item.key]: !p[item.key] }))}
+                      className={`px-4 py-2 rounded-full text-sm font-bold border-2 transition-all ${
+                        pref[item.key]
+                          ? 'border-[#4a8768] bg-[#4a8768]/10 text-[#4a8768]'
+                          : 'border-[#e7e0d7] text-[#7a7169] hover:border-[#d0c8bf]'
+                      }`}
+                    >
+                      {pref[item.key] ? '✓ ' : ''}{item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 파트별 숙련도 */}
+              <div>
+                <p className="text-sm font-bold text-[#25231f] mb-2">파트별 숙련도</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {SKILL_PARTS.map(({ key, label }) => (
+                    <div key={key} className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-[#7a7169] w-16 font-medium">{label}</span>
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map(v => (
+                          <button
+                            key={v}
+                            onClick={() => setPref(p => ({ ...p, [key]: v }))}
+                            className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${
+                              (pref[key] as number) >= v
+                                ? 'bg-[#4a8768] text-white'
+                                : 'bg-[#f2eee8] text-[#b0a8a0]'
+                            }`}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={() => readyMutation.mutate()}
+                disabled={readyMutation.isPending}
+                className="btn-primary w-full"
+              >
+                {readyMutation.isPending ? '처리 중...' : '준비 완료'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── 팀원 준비 현황 (rolesConfirmed 전) ── */}
+      {!rolesConfirmed && (
+        <div className="card space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-[#25231f]">팀원 준비 현황</h3>
+              <p className="text-xs text-[#b0a8a0]">
+                {members.filter(m => m.preferenceReady).length}/{members.length}명 준비 완료
+              </p>
+            </div>
+            {isCreator && allReady && (
+              <button
+                onClick={() => confirmMutation.mutate()}
+                disabled={confirmMutation.isPending}
+                className="btn-primary text-sm"
+              >
+                {confirmMutation.isPending ? '처리 중...' : 'OK 확정'}
+              </button>
+            )}
+            {isCreator && !allReady && (
+              <span className="text-xs text-[#b0a8a0]">모든 팀원이 준비되면 확정할 수 있습니다</span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {members.map(m => (
+              <div key={m.userId} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-bold ${
+                m.preferenceReady
+                  ? 'border-[#4a8768] bg-[#4a8768]/10 text-[#4a8768]'
+                  : 'border-[#e7e0d7] bg-white/70 text-[#b0a8a0]'
+              }`}>
+                <span>{m.preferenceReady ? '✓' : '○'}</span>
+                <span>{m.name}</span>
+                {m.userId === creatorId && <span className="text-xs opacity-70">(방장)</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── 팀원 역량 현황 ── */}
+      <div className="card space-y-3">
+        <div>
+          <h3 className="font-bold text-[#25231f]">팀원 역량 현황</h3>
+          <p className="text-xs text-[#b0a8a0]">
+            {rolesConfirmed
+              ? '역할이 확정되었습니다'
+              : '팀원들의 선호도와 역량을 바탕으로 역할을 배분하세요'}
+          </p>
+        </div>
+
+        <div className="grid gap-4">
+          {members.map(m => {
+            const addRoles = m.additionalRoles
+              ? m.additionalRoles.split(',').filter(Boolean) as MemberRole[]
+              : []
+            return (
+              <div key={m.userId} className="p-4 border border-[#e7e0d7] rounded-2xl bg-white/60 space-y-3">
+                {/* 상단: 이름 + 배지 + 온도 + 역할 select */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-[#25231f]">{m.name}</span>
+                      <span className={`badge ${ROLE_COLORS[m.role]}`}>{ROLE_LABELS[m.role]}</span>
+                      {addRoles.map(r => (
+                        <span key={r} className={`badge ${ROLE_COLORS[r as MemberRole]}`}>+{ROLE_LABELS[r as MemberRole]}</span>
+                      ))}
+                      <span className={`text-sm font-extrabold ${tempColor(m.temperature)}`}>
+                        {m.temperature.toFixed(1)}°
+                      </span>
+                      {m.leadershipWilling && (
+                        <span className="badge bg-[#a8793d]/15 text-[#a8793d]">리더 가능</span>
+                      )}
+                      {m.prConfident && (
+                        <span className="badge bg-[#31465d]/12 text-[#31465d]">PR 자신</span>
+                      )}
+                      {m.preferredRole && (
+                        <span className="text-xs text-[#7a7169]">
+                          선호: <span className="font-bold">{ROLE_LABELS[m.preferredRole]}</span>
+                        </span>
+                      )}
+                      {m.preferenceReady && (
+                        <span className="text-xs text-[#4a8768] font-bold">✓ 준비됨</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-[#b0a8a0] mt-0.5">{m.major} · {m.studentId}</p>
+                  </div>
+                  {/* 역할 직접 배정 (항상 가능, 방장/일반 모두) */}
+                  {!rolesConfirmed && (
+                    <select
+                      className="input text-sm py-1.5 w-28 flex-shrink-0"
+                      value={m.role}
+                      onChange={e => assignMutation.mutate({ memberId: m.memberId, role: e.target.value as MemberRole })}
+                    >
+                      {allRoles.map(r => (
+                        <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {/* 하단: 스킬바 + 레이더 */}
+                <div className="flex gap-4 items-center">
+                  <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5">
+                    {SKILL_PARTS.map(({ key, label }) => (
+                      <div key={key} className="flex items-center gap-2">
+                        <span className="text-xs text-[#b0a8a0] w-12">{label}</span>
+                        <SkillDots value={m[key] as number} />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="w-24 h-24 flex-shrink-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadarChart data={radarData(m)} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+                        <PolarGrid />
+                        <PolarAngleAxis dataKey="subject" tick={{ fontSize: 7 }} />
+                        <Radar dataKey="value" fill="#4a8768" fillOpacity={0.45} stroke="#4a8768" />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
