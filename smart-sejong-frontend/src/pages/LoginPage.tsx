@@ -33,6 +33,7 @@ export default function LoginPage() {
       }
       if (response.user) {
         setUser({
+          id: response.user.id,
           nickname: response.user.fullName || name,
           fullName: response.user.fullName,
           studentId: response.user.studentId,
@@ -68,6 +69,7 @@ export default function LoginPage() {
       }
       if (response.user) {
         setUser({
+          id: response.user.id,
           nickname: response.user.fullName || name,
           fullName: response.user.fullName,
           studentId: response.user.studentId,
@@ -108,6 +110,7 @@ export default function LoginPage() {
 
       if (response.user) {
         setUser({
+          id: response.user.id,
           nickname: response.user.fullName || response.user.studentId || '사용자',
           student_id: response.user.studentId,
           fullName: response.user.fullName,
