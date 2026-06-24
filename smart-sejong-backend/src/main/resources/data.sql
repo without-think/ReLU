@@ -3710,3 +3710,120 @@ MERGE INTO sections (id, course_id, professor, section_number, day_of_week, star
 MERGE INTO sections (id, course_id, professor, section_number, day_of_week, start_time, end_time, room, created_at, updated_at) KEY(id) VALUES (2600, 1, '하진용', '004', 'TUE', '10:30:00', '12:00:00', '대양홀강당, 이204', NOW(), NOW());
 MERGE INTO sections (id, course_id, professor, section_number, day_of_week, start_time, end_time, room, created_at, updated_at) KEY(id) VALUES (2601, 1, '하진용', '005', 'TUE', '10:30:00', '12:00:00', '대양홀강당, 호201', NOW(), NOW());
 MERGE INTO sections (id, course_id, professor, section_number, day_of_week, start_time, end_time, room, created_at, updated_at) KEY(id) VALUES (2602, 1, '하진용', '006', 'TUE', '10:30:00', '12:00:00', '대양홀강당, 센B114', NOW(), NOW());
+-- =============================================
+-- 데모 팀: 스마트 홈 관리 시스템 (AI 분석 시연용)
+-- =============================================
+
+-- 데모 사용자 (ID 9001–9006)
+MERGE INTO users (id, student_id, full_name, major, grade, role, created_at, updated_at) KEY(student_id)
+VALUES (9001, 'DEMO_001', '정리더', '컴퓨터공학과', '3', 'STUDENT', '2024-05-01 09:00:00', '2024-05-01 09:00:00');
+MERGE INTO users (id, student_id, full_name, major, grade, role, created_at, updated_at) KEY(student_id)
+VALUES (9002, 'DEMO_002', '홍에이스', '컴퓨터공학과', '3', 'STUDENT', '2024-05-01 09:00:00', '2024-05-01 09:00:00');
+MERGE INTO users (id, student_id, full_name, major, grade, role, created_at, updated_at) KEY(student_id)
+VALUES (9003, 'DEMO_003', '이소통', '컴퓨터공학과', '3', 'STUDENT', '2024-05-01 09:00:00', '2024-05-01 09:00:00');
+MERGE INTO users (id, student_id, full_name, major, grade, role, created_at, updated_at) KEY(student_id)
+VALUES (9004, 'DEMO_004', '박묵묵', '컴퓨터공학과', '3', 'STUDENT', '2024-05-01 09:00:00', '2024-05-01 09:00:00');
+MERGE INTO users (id, student_id, full_name, major, grade, role, created_at, updated_at) KEY(student_id)
+VALUES (9005, 'DEMO_005', '최마감', '컴퓨터공학과', '3', 'STUDENT', '2024-05-01 09:00:00', '2024-05-01 09:00:00');
+MERGE INTO users (id, student_id, full_name, major, grade, role, created_at, updated_at) KEY(student_id)
+VALUES (9006, 'DEMO_006', '김무임', '컴퓨터공학과', '3', 'STUDENT', '2024-05-01 09:00:00', '2024-05-01 09:00:00');
+
+-- 데모 그룹 (ID 9001, 초대코드 DEMO01)
+MERGE INTO groups (id, invite_code, name, description, github_repo_url, project_deadline, ecampus_course_id, course_name, professor, created_by, roles_confirmed, created_at, updated_at) KEY(invite_code)
+VALUES (9001, 'DEMO01', '스마트 홈 관리 시스템', '스마트 홈 기기를 통합하여 효율적으로 관리하고 모니터링하는 웹 애플리케이션', NULL, '2024-05-29 09:00:00', NULL, '캡스톤디자인', '김민석', 9001, TRUE, '2024-05-01 09:00:00', '2024-05-01 09:00:00');
+
+-- 데모 팀원 (group_id=9001)
+MERGE INTO group_members (id, group_id, user_id, role, temperature, preference_ready, additional_roles, leadership_willing, pr_confident, skill_backend, skill_frontend, skillai, skill_research, skill_present, self_contributing, self_interacting, self_keeping_on_track, self_expecting_quality, self_knowledge_skills, created_at, updated_at) KEY(id)
+VALUES (9001, 9001, 9001, 'LEADER',     72.0, TRUE, NULL, TRUE,  TRUE,  3, 3, 3, 3, 4, 4, 3, 4, 4, 3, '2024-05-01 09:00:00', '2024-05-01 09:00:00');
+MERGE INTO group_members (id, group_id, user_id, role, temperature, preference_ready, additional_roles, leadership_willing, pr_confident, skill_backend, skill_frontend, skillai, skill_research, skill_present, self_contributing, self_interacting, self_keeping_on_track, self_expecting_quality, self_knowledge_skills, created_at, updated_at) KEY(id)
+VALUES (9002, 9001, 9002, 'AI',         84.0, TRUE, NULL, FALSE, FALSE, 3, 3, 5, 2, 3, 5, 3, 4, 5, 5, '2024-05-01 09:00:00', '2024-05-01 09:00:00');
+MERGE INTO group_members (id, group_id, user_id, role, temperature, preference_ready, additional_roles, leadership_willing, pr_confident, skill_backend, skill_frontend, skillai, skill_research, skill_present, self_contributing, self_interacting, self_keeping_on_track, self_expecting_quality, self_knowledge_skills, created_at, updated_at) KEY(id)
+VALUES (9003, 9001, 9003, 'PRESENTER',  65.0, TRUE, NULL, FALSE, TRUE,  2, 3, 2, 4, 5, 3, 5, 3, 3, 3, '2024-05-01 09:00:00', '2024-05-01 09:00:00');
+MERGE INTO group_members (id, group_id, user_id, role, temperature, preference_ready, additional_roles, leadership_willing, pr_confident, skill_backend, skill_frontend, skillai, skill_research, skill_present, self_contributing, self_interacting, self_keeping_on_track, self_expecting_quality, self_knowledge_skills, created_at, updated_at) KEY(id)
+VALUES (9004, 9001, 9004, 'BACKEND',    78.0, TRUE, NULL, FALSE, FALSE, 5, 3, 2, 2, 2, 4, 2, 3, 4, 5, '2024-05-01 09:00:00', '2024-05-01 09:00:00');
+MERGE INTO group_members (id, group_id, user_id, role, temperature, preference_ready, additional_roles, leadership_willing, pr_confident, skill_backend, skill_frontend, skillai, skill_research, skill_present, self_contributing, self_interacting, self_keeping_on_track, self_expecting_quality, self_knowledge_skills, created_at, updated_at) KEY(id)
+VALUES (9005, 9001, 9005, 'FRONTEND',   68.0, TRUE, NULL, FALSE, FALSE, 2, 5, 2, 2, 3, 3, 3, 2, 3, 4, '2024-05-01 09:00:00', '2024-05-01 09:00:00');
+MERGE INTO group_members (id, group_id, user_id, role, temperature, preference_ready, additional_roles, leadership_willing, pr_confident, skill_backend, skill_frontend, skillai, skill_research, skill_present, self_contributing, self_interacting, self_keeping_on_track, self_expecting_quality, self_knowledge_skills, created_at, updated_at) KEY(id)
+VALUES (9006, 9001, 9006, 'RESEARCHER', 41.0, TRUE, NULL, FALSE, FALSE, 2, 2, 2, 3, 2, 1, 2, 2, 2, 2, '2024-05-01 09:00:00', '2024-05-01 09:00:00');
+
+-- 데모 과제 T1–T6
+MERGE INTO project_tasks (id, group_id, assignee_id, created_by, title, description, start_date, deadline, progress, submitted_at, file_name, file_url, status, created_at, updated_at) KEY(id)
+VALUES (9001, 9001, 9006, 9001, '기획: 사용자 요구사항 분석 및 기능 정의', '요구사항 분석 결과 문서', '2024-05-01 09:00:00', '2024-05-05 23:59:00', 100, '2024-05-06 18:31:59', 'T1_김무임.pdf', '/files/T1_김무임.pdf', 'LATE', '2024-05-01 09:00:00', '2024-05-06 18:31:59');
+MERGE INTO project_tasks (id, group_id, assignee_id, created_by, title, description, start_date, deadline, progress, submitted_at, file_name, file_url, status, created_at, updated_at) KEY(id)
+VALUES (9002, 9001, 9004, 9001, '설계: 시스템 아키텍처 및 데이터베이스 설계', '시스템 아키텍처 설계 문서', '2024-05-05 09:00:00', '2024-05-09 23:59:00', 100, '2024-05-09 12:29:03', 'T2_박묵묵.docx', '/files/T2_박묵묵.docx', 'SUBMITTED', '2024-05-01 09:00:00', '2024-05-09 12:29:03');
+MERGE INTO project_tasks (id, group_id, assignee_id, created_by, title, description, start_date, deadline, progress, submitted_at, file_name, file_url, status, created_at, updated_at) KEY(id)
+VALUES (9003, 9001, 9005, 9001, '구현: UI 개발 및 API 연동', 'UI 개발 및 API 연동 보고서', '2024-05-09 09:00:00', '2024-05-13 23:59:00', 100, '2024-05-13 13:45:38', 'T3_최마감.docx', '/files/T3_최마감.docx', 'SUBMITTED', '2024-05-01 09:00:00', '2024-05-13 13:45:38');
+MERGE INTO project_tasks (id, group_id, assignee_id, created_by, title, description, start_date, deadline, progress, submitted_at, file_name, file_url, status, created_at, updated_at) KEY(id)
+VALUES (9004, 9001, 9002, 9001, '통합: 모듈 통합 및 전체 시스템 테스트', '통합 테스트 결과 보고서', '2024-05-13 09:00:00', '2024-05-18 23:59:00', 100, '2024-05-18 01:56:24', 'T4_홍에이스.pdf', '/files/T4_홍에이스.pdf', 'SUBMITTED', '2024-05-01 09:00:00', '2024-05-18 01:56:24');
+MERGE INTO project_tasks (id, group_id, assignee_id, created_by, title, description, start_date, deadline, progress, submitted_at, file_name, file_url, status, created_at, updated_at) KEY(id)
+VALUES (9005, 9001, 9001, 9001, '테스트: 유닛 테스트 및 사용자 피드백 반영', '유닛 테스트 및 피드백 개선 보고서', '2024-05-18 09:00:00', '2024-05-22 23:59:00', 100, '2024-05-22 03:05:57', 'T5_정리더.docx', '/files/T5_정리더.docx', 'SUBMITTED', '2024-05-01 09:00:00', '2024-05-22 03:05:57');
+MERGE INTO project_tasks (id, group_id, assignee_id, created_by, title, description, start_date, deadline, progress, submitted_at, file_name, file_url, status, created_at, updated_at) KEY(id)
+VALUES (9006, 9001, 9003, 9001, '발표: 최종 결과물 시연 및 발표 자료 준비', '최종 발표 자료 (반려됨)', '2024-05-22 09:00:00', '2024-05-27 23:59:00', 100, '2024-05-27 22:20:06', 'T6_이소통.docx', '/files/T6_이소통.docx', 'REJECTED', '2024-05-01 09:00:00', '2024-05-27 22:20:06');
+
+-- 동료 평가 30건 (6명 × 5명, 자기 자신 제외)
+-- 정리더(9001) → 홍에이스(9002)
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9001, 9001, 9001, 9002, 26, 4, 3, 3, 5, 5, '문서화 작업을 성실히 해 줘서 후속 작업에도 많은 도움이 됐어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9002, 9001, 9001, 9003, 15, 3, 4, 3, 3, 3, '문제 발생 시 즉시 대처하고 해결책을 제시해줘서 프로젝트가 순조롭게 진행됐어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9003, 9001, 9001, 9004, 20, 5, 3, 3, 4, 4, '팀원들과의 소통이 원활해져서 협업이 훨씬 수월해졌어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9004, 9001, 9001, 9005, 16, 3, 3, 3, 3, 3, '전체적인 일정 관리에 신경 써줘서 프로젝트 목표를 제때 달성하는 데 기여했어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9005, 9001, 9001, 9006, 6, 2, 2, 2, 3, 2, '마감 기한을 준수하지 않아서 프로젝트 일정이 미뤄졌어.', TRUE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+-- 홍에이스(9002) → others
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9006, 9001, 9002, 9001, 18, 4, 4, 5, 4, 4, '팀원들과의 소통이 원활해져서 협업이 훨씬 수월해졌어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9007, 9001, 9002, 9003, 13, 2, 5, 4, 3, 4, '프로젝트 문서 작성 시 필요한 자료를 성실하게 준비해줘서 많은 도움이 되었어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9008, 9001, 9002, 9004, 21, 4, 3, 3, 4, 4, '항상 팀 회의에 적극적으로 참여해서 좋은 아이디어를 많이 제시해 줬어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9009, 9001, 9002, 9005, 16, 3, 3, 2, 3, 4, '각자 맡은 작업에 대해 중간 점검을 해주면서 팀 전체를 챙겨주는 모습이 인상적이었어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9010, 9001, 9002, 9006, 7, 1, 3, 3, 2, 2, '마감 기한을 준수하지 않아서 프로젝트 일정이 미뤄졌어.', TRUE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+-- 이소통(9003) → others
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9011, 9001, 9003, 9001, 19, 3, 5, 5, 4, 4, '어려운 부분에서도 끈기 있게 문제를 해결하려는 자세가 인상적이었어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9012, 9001, 9003, 9002, 24, 5, 2, 4, 4, 5, '이해하기 쉽게 기술적인 부분을 설명해 주어서 모두가 잘 이해할 수 있었어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9013, 9001, 9003, 9004, 21, 4, 3, 3, 5, 4, '기획 단계에서 사용자 경험을 고려한 디자인을 제안해 줘서 정말 유익했어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9014, 9001, 9003, 9005, 17, 3, 4, 2, 3, 4, '작업이 늦어질 때마다 상황을 잘 파악하고 소통해줘서 팀원들이 걱정하지 않게 했어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9015, 9001, 9003, 9006, 6, 1, 2, 2, 2, 2, '자신의 역할에 대한 책임감이 부족했던 것 같아서 아쉬워.', TRUE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+-- 박묵묵(9004) → others
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9016, 9001, 9004, 9001, 20, 4, 5, 5, 4, 4, '문서화 작업을 성실히 해 줘서 후속 작업에도 많은 도움이 됐어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9017, 9001, 9004, 9002, 21, 5, 4, 4, 5, 4, '각 기기 간의 연동 문제를 깊이 있게 분석해 주어서 문제 해결에 큰 도움이 됐어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9018, 9001, 9004, 9003, 17, 3, 5, 4, 4, 4, '자신의 역할을 충실히 수행하며 필요한 경우 언제든지 도움을 주려는 태도가 좋았어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9019, 9001, 9004, 9005, 15, 3, 3, 3, 3, 4, '전체적인 일정 관리에 신경 써줘서 프로젝트 목표를 제때 달성하는 데 기여했어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9020, 9001, 9004, 9006, 3, 1, 2, 1, 2, 2, '팀 회의에 자주 불참해서 프로젝트 진행이 원활하지 않았던 것 같아.', TRUE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+-- 최마감(9005) → others
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9021, 9001, 9005, 9001, 18, 4, 4, 5, 4, 5, '이해하기 쉽게 기술적인 부분을 설명해 주어서 모두가 잘 이해할 수 있었어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9022, 9001, 9005, 9002, 26, 5, 3, 4, 5, 4, '항상 팀 회의에 적극적으로 참여해서 좋은 아이디어를 많이 제시해 줬어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9023, 9001, 9005, 9003, 13, 2, 5, 4, 3, 3, '각자 맡은 작업에 대해 중간 점검을 해주며 팀 전체를 챙겨주는 모습이 인상적이었어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9024, 9001, 9005, 9004, 20, 3, 1, 3, 5, 4, '기획 단계에서 사용자 경험을 고려한 디자인을 제안해 줘서 정말 유익했어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9025, 9001, 9005, 9006, 7, 2, 1, 1, 3, 3, '피드백 요청했을 때 응답이 거의 없어서 소통이 부족했어.', TRUE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+-- 김무임(9006) → others
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9026, 9001, 9006, 9001, 19, 3, 5, 5, 4, 3, '항상 팀 회의에 적극적으로 참여해서 좋은 아이디어를 많이 제시해 줬어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9027, 9001, 9006, 9002, 25, 5, 4, 5, 5, 4, '문서화 작업을 성실히 해 줘서 후속 작업에도 많은 도움이 됐어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9028, 9001, 9006, 9003, 14, 3, 5, 3, 4, 4, '자신의 역할을 충실히 수행하며 필요한 경우 언제든지 도움을 주려는 태도가 좋았어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9029, 9001, 9006, 9004, 24, 5, 2, 4, 5, 5, '각 기기 간의 연동 문제를 깊이 있게 분석해 주어서 문제 해결에 큰 도움이 됐어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');
+MERGE INTO peer_reviews (id, group_id, reviewer_id, reviewee_id, contribution_score, contributing, interacting, keeping_on_track, expecting_quality, knowledge_skills, comment, suspected_free_rider, created_at, updated_at) KEY(group_id, reviewer_id, reviewee_id)
+VALUES (9030, 9001, 9006, 9005, 17, 4, 3, 3, 4, 3, '각자 맡은 작업에 대해 중간 점검을 해주며 팀 전체를 챙겨주는 모습이 인상적이었어.', FALSE, '2024-05-28 18:00:00', '2024-05-28 18:00:00');

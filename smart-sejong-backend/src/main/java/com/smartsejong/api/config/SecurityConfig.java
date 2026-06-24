@@ -46,7 +46,8 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/login",           // 세종대 포털 로그인
                                 "/api/auth/refresh",         // JWT 토큰 갱신
-                                "/api/auth/professor-mock"   // 교수 가계정 (데모용)
+                                "/api/auth/professor-mock",  // 교수 가계정 (데모용)
+                                "/api/auth/demo"             // 데모 학생 계정
                         ).permitAll()
 
                         // 2. 테스트 경로 허용

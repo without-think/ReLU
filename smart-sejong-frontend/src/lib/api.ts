@@ -187,6 +187,17 @@ class ApiClient {
     throw new Error(data.message || '로그인에 실패했습니다.')
   }
 
+  async demoLogin(name: string): Promise<AuthResponse> {
+    const { data } = await this.client.post<{ status: number; message: string; data: AuthResponse }>(
+      '/api/auth/demo',
+      { name }
+    )
+    if (data.status === 200 && data.data) {
+      return data.data
+    }
+    throw new Error(data.message || '로그인에 실패했습니다.')
+  }
+
   async logout(): Promise<void> {
     await this.client.post('/api/auth/logout')
     localStorage.removeItem('token')

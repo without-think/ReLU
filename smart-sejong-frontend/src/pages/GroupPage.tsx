@@ -10,7 +10,7 @@ import {
   CheckCircle2, XCircle, AlertCircle, Eye, EyeOff, Calendar, Trash2, Edit2,
 } from 'lucide-react'
 import {
-  RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip,
 } from 'recharts'
 import {
   format, parseISO, isPast, differenceInHours, differenceInDays,
@@ -21,7 +21,7 @@ import { GanttTab } from '@/components/group/GanttTab'
 import type {
   GroupSummary, GroupDetail, TeamMember, MemberRole, ProjectTask,
   TaskStatus, AvailabilitySlot, PeerReviewRequest,
-  EcampusCourse, Timetable, UpdateTaskRequest,
+  EcampusCourse, Timetable, UpdateTaskRequest, MemberScore,
 } from '@/types'
 
 // ─── constants ───────────────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ function tempColor(temp: number) {
 
 // ─── main page ────────────────────────────────────────────────────────────────
 
-type Tab = 'home' | 'timetable' | 'availability' | 'roles' | 'tasks' | 'gantt' | 'review' | 'ecampus'
+type Tab = 'home' | 'timetable' | 'availability' | 'roles' | 'tasks' | 'gantt' | 'review' | 'ecampus' | 'ai'
 type TeamView = 'mine' | 'find'
 
 interface GroupRouteState {
@@ -159,6 +159,11 @@ export default function GroupPage() {
     queryKey: ['group', selectedGroupId],
     queryFn: () => api.getGroupDetail(selectedGroupId!),
     enabled: !!selectedGroupId,
+    refetchInterval: (query) => {
+      // 역할 확정 전(온보딩 중)에는 3초마다 폴링, 확정 후엔 중단
+      const data = query.state.data as import('@/types').GroupDetail | undefined
+      return data?.rolesConfirmed ? false : 3000
+    },
   })
 
   const leaveMutation = useMutation({
@@ -237,12 +242,10 @@ export default function GroupPage() {
 
   const allTabs: { id: Tab; label: string }[] = [
     { id: 'home', label: '팀 홈' },
-    { id: 'timetable', label: '내 시간표' },
     { id: 'availability', label: '가능 시간' },
     { id: 'roles', label: '역할 배분' },
-    { id: 'tasks', label: '과제 관리' },
-    { id: 'gantt', label: '간트 차트' },
     { id: 'review', label: '동료 평가' },
+    { id: 'ai', label: 'AI 분석' },
     { id: 'ecampus', label: '과제 제출 이력' },
   ]
   // Before roles are confirmed, only show onboarding-relevant tabs
@@ -431,23 +434,17 @@ export default function GroupPage() {
               {activeTab === 'home' && (
                 <HomeTab group={groupDetail} onRefresh={() => queryClient.invalidateQueries({ queryKey: ['group', selectedGroupId] })} />
               )}
-              {activeTab === 'timetable' && (
-                <TimetableTab />
-              )}
               {activeTab === 'availability' && (
                 <AvailabilityTab groupId={selectedGroupId} members={groupDetail.members} />
               )}
               {activeTab === 'roles' && (
                 <RolesTab group={groupDetail} onRefresh={() => queryClient.invalidateQueries({ queryKey: ['group', selectedGroupId] })} />
               )}
-              {activeTab === 'tasks' && (
-                <TasksTab groupId={selectedGroupId} members={groupDetail.members} />
-              )}
-              {activeTab === 'gantt' && (
-                <GanttTab groupId={selectedGroupId} members={groupDetail.members} />
-              )}
               {activeTab === 'review' && (
                 <ReviewTab groupId={selectedGroupId} members={groupDetail.members} />
+              )}
+              {activeTab === 'ai' && (
+                <AiAnalysisTab groupId={selectedGroupId} groupName={groupDetail.name} members={groupDetail.members} />
               )}
               {activeTab === 'ecampus' && (
                 activeGroupCourse ? (
@@ -850,6 +847,9 @@ function HomeTab({ group, onRefresh }: { group: GroupDetail; onRefresh: () => vo
         )}
       </div>
 
+      {/* Gantt chart */}
+      <GanttTab groupId={group.id} members={group.members} />
+
       {/* Members grid */}
       <div className="card">
         <h3 className="font-bold text-[#25231f] mb-3">팀원 온도</h3>
@@ -952,12 +952,12 @@ function AvailabilityTab({ groupId, members }: { groupId: number; members: TeamM
         onMouseUp={() => setDragging(false)}
         onMouseLeave={() => setDragging(false)}
       >
-        <table className="w-full text-xs border-collapse">
+        <table className="w-full text-xs border-collapse table-fixed">
           <thead>
             <tr>
               <th className="w-14 text-[#b0a8a0] font-normal py-1 pr-2 text-right">시간</th>
               {DAYS.map(d => (
-                <th key={d} className="text-center text-[#7a7169] font-bold py-1 px-1 w-full">{DAY_LABELS[d]}</th>
+                <th key={d} className="text-center text-[#7a7169] font-bold py-1 px-1">{DAY_LABELS[d]}</th>
               ))}
             </tr>
           </thead>
@@ -2136,5 +2136,201 @@ function EcampusDeadlineBadge({ deadline, submitted }: { deadline: string | null
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${days <= 3 ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
       <Clock className="w-3 h-3" />D-{days}
     </span>
+  )
+}
+
+// ─── AiAnalysisTab ────────────────────────────────────────────────────────────
+
+const DEMO_CHAT_DATA: Record<string, { messages: number; avgResponseH: number; orchRate: number; commScore: number; progressScore: number }> = {
+  '정리더':  { messages: 38, avgResponseH: 0.7, orchRate: 0.89, commScore: 3, progressScore: 3 },
+  '홍에이스': { messages: 28, avgResponseH: 1.0, orchRate: 0.86, commScore: 5, progressScore: 5 },
+  '이소통':  { messages: 22, avgResponseH: 0.3, orchRate: 0.77, commScore: 5, progressScore: 5 },
+  '박묵묵':  { messages: 19, avgResponseH: 1.7, orchRate: 0.79, commScore: 5, progressScore: 5 },
+  '최마감':  { messages: 18, avgResponseH: 1.2, orchRate: 0.83, commScore: 3, progressScore: 3 },
+  '김무임':  { messages: 20, avgResponseH: 1.6, orchRate: 0.60, commScore: 1, progressScore: 1 },
+}
+
+const MEMBER_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4']
+
+function AiAnalysisTab({ groupId, groupName }: { groupId: number; groupName: string; members: TeamMember[] }) {
+  const { data: summary, isLoading } = useQuery({
+    queryKey: ['reviews', groupId],
+    queryFn: () => api.getPeerReviewSummary(groupId),
+  })
+
+  const isDemo = groupName === '스마트 홈 관리 시스템'
+  const scores: MemberScore[] = summary?.memberScores ?? []
+  const freeRiders = scores.filter(s => s.suspectedFreeRider)
+  const sortedByContrib = [...scores].sort((a, b) => b.avgContributionScore - a.avgContributionScore)
+
+  if (isLoading) return (
+    <div className="flex justify-center py-12">
+      <div className="w-6 h-6 rounded-full border-2 border-[#e6c49a] border-t-transparent animate-spin" />
+    </div>
+  )
+
+  if (scores.length === 0 || scores.every(s => s.reviewCount === 0)) {
+    return (
+      <div className="card text-center py-16 text-[#b0a8a0]">
+        <div className="text-4xl mb-3">🤖</div>
+        <p className="font-semibold text-lg text-[#8a8078] mb-1">아직 분석 데이터가 없어요</p>
+        <p className="text-sm">동료 평가가 완료되면 AI 분석 결과를 확인할 수 있습니다.</p>
+      </div>
+    )
+  }
+
+  const radarData = (ms: MemberScore) => [
+    { dim: '기여', score: ms.avgContributing },
+    { dim: '소통', score: ms.avgInteracting },
+    { dim: '일정', score: ms.avgKeepingOnTrack },
+    { dim: '품질', score: ms.avgExpectingQuality },
+    { dim: '역량', score: ms.avgKnowledgeSkills },
+  ]
+
+  const avgScore = (ms: MemberScore) =>
+    (ms.avgContributing + ms.avgInteracting + ms.avgKeepingOnTrack + ms.avgExpectingQuality + ms.avgKnowledgeSkills) / 5
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="card p-5 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100">
+        <div className="flex items-center gap-3">
+          <span className="text-3xl">🤖</span>
+          <div>
+            <h3 className="font-bold text-lg text-[#25231f]">AI 팀 분석</h3>
+            <p className="text-sm text-[#8a8078]">동료 평가 데이터를 기반으로 기여도와 역량을 분석합니다.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 무임승차 탐지 */}
+      {freeRiders.length > 0 && (
+        <div className="card p-4 bg-red-50 border border-red-200">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-bold text-red-700">무임승차 의심 탐지됨</p>
+              {freeRiders.map(fr => (
+                <div key={fr.userId} className="flex flex-wrap items-center gap-2 text-sm text-red-600">
+                  <span className="font-semibold">{fr.name}</span>
+                  <span>·</span>
+                  <span>평균 기여도 {fr.avgContributionScore.toFixed(1)}%</span>
+                  <span>·</span>
+                  <span>동료 평가 {avgScore(fr).toFixed(1)}/5</span>
+                  <span>·</span>
+                  <span>{fr.reviewCount}명 평가</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 기여도 분석 */}
+      <div className="card p-5">
+        <h4 className="font-bold text-[#25231f] mb-4">기여도 분석 <span className="text-xs font-normal text-[#8a8078]">(동료 평가 기반)</span></h4>
+        <div className="space-y-3">
+          {sortedByContrib.map((ms, i) => {
+            const pct = ms.avgContributionScore
+            const maxPct = sortedByContrib[0].avgContributionScore
+            const barWidth = maxPct > 0 ? (pct / maxPct) * 100 : 0
+            return (
+              <div key={ms.userId} className="flex items-center gap-3">
+                <span className="text-sm font-medium w-16 text-right text-[#25231f] flex-shrink-0">{ms.name}</span>
+                <div className="flex-1 bg-gray-100 rounded-full h-5 relative overflow-hidden">
+                  <div
+                    className="h-5 rounded-full transition-all duration-500"
+                    style={{ width: `${barWidth}%`, backgroundColor: MEMBER_COLORS[i % MEMBER_COLORS.length] }}
+                  />
+                </div>
+                <span className="text-sm font-bold w-12 text-right text-[#25231f] flex-shrink-0">
+                  {pct.toFixed(1)}%
+                </span>
+                {ms.suspectedFreeRider && <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* 역량 레이더 */}
+      <div className="card p-5">
+        <h4 className="font-bold text-[#25231f] mb-4">팀원별 역량 프로파일</h4>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          {scores.map((ms, i) => (
+            <div
+              key={ms.userId}
+              className={`rounded-xl p-3 border ${ms.suspectedFreeRider ? 'border-red-200 bg-red-50' : 'border-gray-100 bg-gray-50'}`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-[#25231f]">{ms.name}</span>
+                {ms.suspectedFreeRider && <AlertTriangle className="w-3 h-3 text-red-400" />}
+              </div>
+              <ResponsiveContainer width="100%" height={140}>
+                <RadarChart data={radarData(ms)} margin={{ top: 4, right: 12, bottom: 4, left: 12 }}>
+                  <PolarGrid />
+                  <PolarAngleAxis dataKey="dim" tick={{ fontSize: 10, fill: '#6b7280' }} />
+                  <Radar
+                    dataKey="score"
+                    stroke={MEMBER_COLORS[i % MEMBER_COLORS.length]}
+                    fill={MEMBER_COLORS[i % MEMBER_COLORS.length]}
+                    fillOpacity={0.35}
+                  />
+                  <Tooltip formatter={(v: number) => [v.toFixed(1), '점수']} />
+                </RadarChart>
+              </ResponsiveContainer>
+              <p className="text-xs text-center text-[#8a8078] mt-1">평균 {avgScore(ms).toFixed(2)} / 5</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 채팅 참여도 (데모 전용) */}
+      {isDemo && (
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <h4 className="font-bold text-[#25231f]">채팅 참여도 분석</h4>
+            <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded-full font-medium">카카오톡 기반</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse table-fixed">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="text-left px-3 py-2 font-semibold text-[#6b7280] border-b">팀원</th>
+                  <th className="text-right px-3 py-2 font-semibold text-[#6b7280] border-b">발화수</th>
+                  <th className="text-right px-3 py-2 font-semibold text-[#6b7280] border-b">평균 응답(h)</th>
+                  <th className="text-right px-3 py-2 font-semibold text-[#6b7280] border-b">조율 비율</th>
+                  <th className="text-center px-3 py-2 font-semibold text-[#6b7280] border-b">소통</th>
+                  <th className="text-center px-3 py-2 font-semibold text-[#6b7280] border-b">진행관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scores.map(ms => {
+                  const chat = DEMO_CHAT_DATA[ms.name]
+                  if (!chat) return null
+                  const scoreColor = (v: number) =>
+                    v >= 4 ? 'text-green-600 font-bold' : v <= 2 ? 'text-red-500 font-bold' : 'text-[#25231f]'
+                  return (
+                    <tr key={ms.userId} className={`border-b hover:bg-gray-50 ${ms.suspectedFreeRider ? 'bg-red-50' : ''}`}>
+                      <td className="px-3 py-2 font-medium text-[#25231f]">
+                        {ms.name}{ms.suspectedFreeRider && ' ⚠️'}
+                      </td>
+                      <td className="px-3 py-2 text-right text-[#25231f]">{chat.messages}</td>
+                      <td className="px-3 py-2 text-right text-[#25231f]">{chat.avgResponseH.toFixed(1)}</td>
+                      <td className="px-3 py-2 text-right text-[#25231f]">{(chat.orchRate * 100).toFixed(0)}%</td>
+                      <td className={`px-3 py-2 text-center ${scoreColor(chat.commScore)}`}>{chat.commScore}/5</td>
+                      <td className={`px-3 py-2 text-center ${scoreColor(chat.progressScore)}`}>{chat.progressScore}/5</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-[#b0a8a0] mt-3">
+            * 발화수: 전체 채팅 메시지 수 · 평균 응답: 응답까지 소요 시간 · 조율 비율: 조율·진척 관련 메시지 비율
+          </p>
+        </div>
+      )}
+    </div>
   )
 }

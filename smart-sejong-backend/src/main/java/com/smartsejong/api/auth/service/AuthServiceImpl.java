@@ -185,6 +185,14 @@ public class AuthServiceImpl implements AuthService {
      * @param user 토큰을 발급할 사용자
      * @return JWT 토큰 및 사용자 정보를 담은 응답
      */
+    @Override
+    @Transactional
+    public AuthResponse demoLogin(String name) {
+        User user = userRepository.findByFullName(name)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        return generateAuthResponse(user);
+    }
+
     private AuthResponse generateAuthResponse(User user) {
         // JWT 토큰 생성
         String accessToken = jwtTokenProvider.createAccessToken(user.getId());

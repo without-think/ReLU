@@ -41,4 +41,6 @@ public interface AuthService {
     void logout(Long userId);
 
     AuthResponse professorMockLogin(String name);
+
+    AuthResponse demoLogin(String name);
 }

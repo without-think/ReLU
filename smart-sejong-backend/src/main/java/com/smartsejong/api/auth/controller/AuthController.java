@@ -91,6 +91,17 @@ public class AuthController {
         return ResponseEntity.ok(CommonResponse.success("교수 가계정 로그인 성공", response));
     }
 
+    @PostMapping("/demo")
+    public ResponseEntity<CommonResponse<AuthResponse>> demoLogin(
+            @RequestBody java.util.Map<String, String> body) {
+        String name = body.get("name");
+        if (name == null || name.isBlank()) {
+            return ResponseEntity.badRequest().body(CommonResponse.success("이름을 입력해주세요.", null));
+        }
+        AuthResponse response = authService.demoLogin(name.trim());
+        return ResponseEntity.ok(CommonResponse.success("데모 로그인 성공", response));
+    }
+
     @PostMapping("/logout")
     public ResponseEntity<CommonResponse<Void>> logout(
             @AuthenticationPrincipal CustomUserDetails userDetails

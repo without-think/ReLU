@@ -12,6 +12,46 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [professorName, setProfessorName] = useState('')
   const [showProfessorInput, setShowProfessorInput] = useState(false)
+  const [showDemoInput, setShowDemoInput] = useState(false)
+
+  const DEMO_MEMBERS = [
+    { name: '정리더', role: '팀장' },
+    { name: '홍에이스', role: 'AI' },
+    { name: '이소통', role: '발표' },
+    { name: '박묵묵', role: '백엔드' },
+    { name: '최마감', role: '프론트' },
+    { name: '김무임', role: '자료조사' },
+  ]
+
+  const handleDemoLogin = async (name: string) => {
+    setIsLoggingIn(true)
+    try {
+      const response = await api.demoLogin(name)
+      if (response.accessToken) {
+        localStorage.setItem('token', response.accessToken)
+        if (response.refreshToken) localStorage.setItem('refreshToken', response.refreshToken)
+      }
+      if (response.user) {
+        setUser({
+          nickname: response.user.fullName || name,
+          fullName: response.user.fullName,
+          studentId: response.user.studentId,
+          student_id: response.user.studentId,
+          major: response.user.major,
+          grade: response.user.grade,
+          role: response.user.role as any,
+          is_verified: true,
+          profile_image: undefined,
+        })
+      }
+      toast.success(`${name}으로 로그인됐습니다.`)
+      navigate('/group', { replace: true })
+    } catch (error: any) {
+      toast.error(error?.message || '로그인에 실패했습니다.')
+    } finally {
+      setIsLoggingIn(false)
+    }
+  }
 
   const handleProfessorLogin = async () => {
     const name = professorName.trim()
@@ -206,17 +246,14 @@ export default function LoginPage() {
             학번과 포털 비밀번호를 사용합니다
           </p>
 
-          <div className="mt-4 pt-4 border-t" style={{ borderColor: 'rgba(0,0,0,0.07)' }}>
+          <div className="mt-4 pt-4 border-t space-y-3" style={{ borderColor: 'rgba(0,0,0,0.07)' }}>
+            {/* 교수 가계정 */}
             {!showProfessorInput ? (
               <button
                 type="button"
-                onClick={() => setShowProfessorInput(true)}
+                onClick={() => { setShowProfessorInput(true); setShowDemoInput(false) }}
                 className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all"
-                style={{
-                  background: 'rgba(99,102,241,0.08)',
-                  color: '#6366f1',
-                  border: '1.5px dashed #6366f1',
-                }}
+                style={{ background: 'rgba(99,102,241,0.08)', color: '#6366f1', border: '1.5px dashed #6366f1' }}
               >
                 교수 가계정으로 로그인
               </button>
@@ -233,23 +270,53 @@ export default function LoginPage() {
                   autoFocus
                 />
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleProfessorLogin}
+                  <button type="button" onClick={handleProfessorLogin}
                     className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
-                    style={{ background: '#6366f1', color: '#fff' }}
-                  >
+                    style={{ background: '#6366f1', color: '#fff' }}>
                     교수로 로그인
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => { setShowProfessorInput(false); setProfessorName('') }}
+                  <button type="button" onClick={() => { setShowProfessorInput(false); setProfessorName('') }}
                     className="px-4 py-2.5 rounded-xl text-sm font-semibold"
-                    style={{ background: 'rgba(0,0,0,0.06)', color: 'var(--text-secondary)' }}
-                  >
+                    style={{ background: 'rgba(0,0,0,0.06)', color: 'var(--text-secondary)' }}>
                     취소
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* 데모 팀 가계정 */}
+            {!showDemoInput ? (
+              <button
+                type="button"
+                onClick={() => { setShowDemoInput(true); setShowProfessorInput(false) }}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all"
+                style={{ background: 'rgba(16,185,129,0.08)', color: '#10b981', border: '1.5px dashed #10b981' }}
+              >
+                🤖 데모 팀원으로 로그인 (AI 분석 시연)
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold" style={{ color: '#10b981' }}>스마트 홈 팀 데모 계정</p>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {DEMO_MEMBERS.map(m => (
+                    <button
+                      key={m.name}
+                      type="button"
+                      disabled={isLoggingIn}
+                      onClick={() => handleDemoLogin(m.name)}
+                      className="py-2 rounded-xl text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-50"
+                      style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
+                    >
+                      <div>{m.name}</div>
+                      <div className="opacity-60">{m.role}</div>
+                    </button>
+                  ))}
+                </div>
+                <button type="button" onClick={() => setShowDemoInput(false)}
+                  className="w-full py-1.5 rounded-xl text-xs"
+                  style={{ background: 'rgba(0,0,0,0.04)', color: 'var(--text-secondary)' }}>
+                  접기
+                </button>
               </div>
             )}
           </div>

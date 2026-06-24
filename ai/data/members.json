@@ -1,0 +1,32 @@
+[
+  {
+    "member_id": "m1",
+    "name": "정리더",
+    "role": "팀장"
+  },
+  {
+    "member_id": "m2",
+    "name": "홍에이스",
+    "role": "AI"
+  },
+  {
+    "member_id": "m3",
+    "name": "이소통",
+    "role": "발표"
+  },
+  {
+    "member_id": "m4",
+    "name": "박묵묵",
+    "role": "백엔드"
+  },
+  {
+    "member_id": "m5",
+    "name": "최마감",
+    "role": "프론트엔드"
+  },
+  {
+    "member_id": "m6",
+    "name": "김무임",
+    "role": "자료조사"
+  }
+]
