@@ -68,6 +68,9 @@ public class SecurityConfig {
                         // 5. H2 콘솔 및 에러 페이지 허용
                         .requestMatchers("/h2-console/**", "/error").permitAll()
 
+                        // 6. WebSocket 허용
+                        .requestMatchers("/ws/**").permitAll()
+
                         // 그 외 모든 요청은 인증 필요
                         .anyRequest().permitAll()
                 )
@@ -83,13 +86,10 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        config.setAllowedOrigins(List.of(
-                "http://localhost:3000",
-                "http://localhost:3001",
-                "http://localhost:3002",
-                "http://127.0.0.1:3000",
-                "http://127.0.0.1:3001",
-                "http://127.0.0.1:3002"
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "https://*.run.app"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));

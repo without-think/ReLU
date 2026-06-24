@@ -7,11 +7,13 @@ import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer,
 } from 'recharts'
 import type { ReactNode } from 'react'
-import type { GroupDetail, GroupSummary, MemberRole, MemberScore, PeerReviewSummary, UserInfo } from '@/types'
+import type { GroupDetail, GroupSummary, MemberRole, MemberScore, PeerReviewSummary, ReviewComment, UserInfo } from '@/types'
 
 interface ReviewSummaryWithGroup extends PeerReviewSummary {
   groupId: number
   groupName: string
+  courseName: string
+  projectDeadline: string | null
 }
 
 interface RadarAngleTickProps {
@@ -26,6 +28,16 @@ interface RadarAngleTickProps {
 interface CompletedProject {
   id: number
   teamName: string
+  courseName: string
+  role: MemberRole
+  projectDeadline: string | null
+  avgContributionScore: number
+  reviewCount: number
+}
+
+interface ProfileReview extends ReviewComment {
+  groupId: number
+  groupName: string
   courseName: string
   role: MemberRole
 }
@@ -65,6 +77,10 @@ function academicTerm(grade?: string | null) {
 }
 
 function findMyScore(scores: MemberScore[] | undefined, userInfo?: UserInfo) {
+  const ids = [userInfo?.id, userInfo?.userId].filter((id): id is number => typeof id === 'number')
+  const byId = scores?.find((score) => ids.includes(score.userId))
+  if (byId) return byId
+
   const names = [userInfo?.fullName, userInfo?.nickname].filter(Boolean)
   return scores?.find((score) => names.includes(score.name)) ?? null
 }
@@ -89,6 +105,7 @@ function RadarAngleTick({ x = 0, y = 0, textAnchor = 'middle', payload }: RadarA
 
 export default function ProfilePage() {
   const [showAllReviews, setShowAllReviews] = useState(false)
+  const [showAllProjects, setShowAllProjects] = useState(false)
   const [showMetricHelp, setShowMetricHelp] = useState(false)
   const { setUser } = useAuthStore()
 
@@ -104,18 +121,36 @@ export default function ProfilePage() {
   const { data: groups = [] } = useQuery<GroupSummary[]>({
     queryKey: ['groups'],
     queryFn: () => api.getGroups(),
+    refetchOnMount: 'always',
   })
 
   const myGroups = useMemo(() => groups.filter((group) => group.joined), [groups])
 
+  const completedGroups = useMemo(() => {
+    const now = Date.now()
+    return myGroups
+      .filter((group) => group.completed || (group.projectDeadline && new Date(group.projectDeadline).getTime() < now))
+      .sort((a, b) => {
+        const aTime = a.projectDeadline ? new Date(a.projectDeadline).getTime() : 0
+        const bTime = b.projectDeadline ? new Date(b.projectDeadline).getTime() : 0
+        return bTime - aTime
+      })
+  }, [myGroups])
+
   const { data: reviewSummaries = [] } = useQuery<ReviewSummaryWithGroup[]>({
-    queryKey: ['profile-reviews', myGroups.map((group) => group.id)],
+    queryKey: ['profile-reviews', completedGroups.map((group) => group.id)],
     queryFn: async () => {
       const summaries = await Promise.all(
-        myGroups.map(async (group) => {
+        completedGroups.map(async (group) => {
           try {
             const summary = await api.getPeerReviewSummary(group.id)
-            return { ...summary, groupId: group.id, groupName: group.name }
+            return {
+              ...summary,
+              groupId: group.id,
+              groupName: group.name,
+              courseName: group.courseName || '과목 정보 없음',
+              projectDeadline: group.projectDeadline,
+            }
           } catch {
             return null
           }
@@ -123,22 +158,11 @@ export default function ProfilePage() {
       )
       return summaries.filter((summary): summary is ReviewSummaryWithGroup => !!summary)
     },
-    enabled: myGroups.length > 0,
+    enabled: completedGroups.length > 0,
+    refetchOnMount: 'always',
   })
 
-  const completedGroups = useMemo(() => {
-    const now = Date.now()
-    return myGroups
-      .filter((group) => group.projectDeadline && new Date(group.projectDeadline).getTime() < now)
-      .sort((a, b) => {
-        const aTime = a.projectDeadline ? new Date(a.projectDeadline).getTime() : 0
-        const bTime = b.projectDeadline ? new Date(b.projectDeadline).getTime() : 0
-        return bTime - aTime
-      })
-      .slice(0, 2)
-  }, [myGroups])
-
-  const { data: completedProjects = [] } = useQuery<CompletedProject[]>({
+  const { data: completedProjectDetails = [] } = useQuery<GroupDetail[]>({
     queryKey: ['profile-completed-projects', completedGroups.map((group) => group.id), userInfo?.student_id, userInfo?.studentId, userInfo?.fullName],
     queryFn: async () => {
       const details = await Promise.all(
@@ -152,25 +176,10 @@ export default function ProfilePage() {
         })
       )
 
-      const studentId = userInfo?.student_id || userInfo?.studentId
-      const names = [userInfo?.fullName, userInfo?.nickname].filter(Boolean)
-
-      return details
-        .filter((detail): detail is GroupDetail => !!detail)
-        .map((detail) => {
-          const me = detail.members.find((member) => (
-            (studentId && member.studentId === studentId) || names.includes(member.name)
-          ))
-
-          return {
-            id: detail.id,
-            teamName: detail.name,
-            courseName: detail.courseName || '과목 정보 없음',
-            role: me?.role ?? 'UNASSIGNED',
-          }
-        })
+      return details.filter((detail): detail is GroupDetail => !!detail)
     },
     enabled: completedGroups.length > 0 && !!userInfo,
+    refetchOnMount: 'always',
   })
 
   const myReviewScores = useMemo(() => {
@@ -181,6 +190,56 @@ export default function ProfilePage() {
       })
       .filter((score): score is MemberScore & { groupId: number; groupName: string } => !!score)
   }, [reviewSummaries, userInfo])
+
+  const roleByGroupId = useMemo(() => {
+    const studentId = userInfo?.student_id || userInfo?.studentId
+    const names = [userInfo?.fullName, userInfo?.nickname].filter(Boolean)
+
+    return completedProjectDetails.reduce<Record<number, MemberRole>>((acc, detail) => {
+      const me = detail.members.find((member) => (
+        (studentId && member.studentId === studentId) || names.includes(member.name)
+      ))
+      acc[detail.id] = me?.role ?? 'UNASSIGNED'
+      return acc
+    }, {})
+  }, [completedProjectDetails, userInfo])
+
+  const completedProjects = useMemo<CompletedProject[]>(() => {
+    return completedGroups.map((group) => {
+      const score = myReviewScores.find((reviewScore) => reviewScore.groupId === group.id)
+      return {
+        id: group.id,
+        teamName: group.name,
+        courseName: group.courseName || '과목 정보 없음',
+        role: roleByGroupId[group.id] ?? 'UNASSIGNED',
+        projectDeadline: group.projectDeadline,
+        avgContributionScore: score?.avgContributionScore ?? 0,
+        reviewCount: score?.reviewCount ?? 0,
+      }
+    })
+  }, [completedGroups, myReviewScores, roleByGroupId])
+
+  const profileReviews = useMemo<ProfileReview[]>(() => {
+    const myUserIds = [
+      userInfo?.id,
+      userInfo?.userId,
+    ].filter((id): id is number => typeof id === 'number')
+    const names = [userInfo?.fullName, userInfo?.nickname].filter(Boolean)
+
+    return reviewSummaries
+      .flatMap((summary) => (summary.reviewComments ?? [])
+        .filter((review) => (
+          myUserIds.includes(review.revieweeId) || names.includes(review.revieweeName)
+        ))
+        .map((review) => ({
+          ...review,
+          groupId: summary.groupId,
+          groupName: summary.groupName,
+          courseName: summary.courseName,
+          role: roleByGroupId[summary.groupId] ?? 'UNASSIGNED',
+        })))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  }, [reviewSummaries, roleByGroupId, userInfo])
 
   const averageScores = useMemo(() => {
     if (myReviewScores.length === 0) return null
@@ -227,8 +286,8 @@ export default function ProfilePage() {
 
   const displayName = userInfo?.fullName || userInfo?.nickname || '사용자'
   const studentId = userInfo?.student_id || userInfo?.studentId || '-'
-  const sortedReviewScores = [...myReviewScores].sort((a, b) => b.groupId - a.groupId)
-  const visibleReviewScores = showAllReviews ? sortedReviewScores : sortedReviewScores.slice(0, 3)
+  const visibleProjects = showAllProjects ? completedProjects : completedProjects.slice(0, 2)
+  const visibleReviews = showAllReviews ? profileReviews : profileReviews.slice(0, 3)
 
   return (
     <div className="space-y-6">
@@ -273,26 +332,43 @@ export default function ProfilePage() {
           </section>
 
           <section className="card">
-            <h2 className="font-bold text-[#25231f] mb-4 flex items-center gap-2">
-              <span className="w-8 h-8 rounded-xl bg-[#4a8768]/10 flex items-center justify-center">
-                <CheckCircle2 className="w-4 h-4 text-[#4a8768]" />
-              </span>
-              완료한 프로젝트
-            </h2>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h2 className="font-bold text-[#25231f] flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-[#4a8768]/10 flex items-center justify-center">
+                  <CheckCircle2 className="w-4 h-4 text-[#4a8768]" />
+                </span>
+                완료한 프로젝트
+              </h2>
+              {completedProjects.length > 2 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllProjects((current) => !current)}
+                  className="text-sm font-bold text-[#4a8768] hover:text-[#3f7359] transition-colors"
+                >
+                  {showAllProjects ? '접기' : '전체보기'}
+                </button>
+              )}
+            </div>
 
             {completedProjects.length === 0 ? (
               <p className="text-sm text-[#b0a8a0] text-center py-6">완료한 프로젝트가 없습니다</p>
             ) : (
               <div className="space-y-3">
-                {completedProjects.map((project) => (
+                {visibleProjects.map((project) => (
                   <div key={project.id} className="p-4 rounded-2xl bg-white/70 border border-[#e7e0d7]">
                     <p className="text-xs font-bold text-[#4a8768] truncate">{project.courseName}</p>
                     <p className="text-sm font-extrabold text-[#25231f] truncate mt-1">{project.teamName}</p>
-                    <div className="mt-3 flex items-center justify-between gap-3">
-                      <span className="text-xs text-[#b0a8a0]">담당 역할</span>
-                      <span className="badge bg-[#31465d]/10 text-[#31465d]">
-                        {ROLE_LABELS[project.role]}
-                      </span>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="rounded-xl bg-[#f8f5f0] px-3 py-2">
+                        <p className="text-[11px] font-bold text-[#b0a8a0]">담당 역할</p>
+                        <p className="text-sm font-extrabold text-[#31465d]">{ROLE_LABELS[project.role]}</p>
+                      </div>
+                      <div className="rounded-xl bg-[#f8f5f0] px-3 py-2">
+                        <p className="text-[11px] font-bold text-[#b0a8a0]">받은 평점</p>
+                        <p className="text-sm font-extrabold text-[#4a8768]">
+                          {project.reviewCount > 0 ? `${project.avgContributionScore.toFixed(0)}점` : '평가 없음'}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -359,7 +435,7 @@ export default function ProfilePage() {
             </span>
             후기
           </h2>
-          {sortedReviewScores.length > 3 && (
+          {profileReviews.length > 3 && (
             <button
               type="button"
               onClick={() => setShowAllReviews((current) => !current)}
@@ -370,26 +446,28 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {sortedReviewScores.length === 0 ? (
+        {profileReviews.length === 0 ? (
           <p className="text-sm text-[#b0a8a0] text-center py-8">아직 받은 후기가 없습니다</p>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {visibleReviewScores.map((score) => (
-              <div key={`${score.groupId}-${score.userId}`} className="p-5 rounded-2xl bg-white/60 border border-[#e7e0d7]">
+            {visibleReviews.map((review) => (
+              <div key={`${review.groupId}-${review.reviewerId}-${review.createdAt}`} className="p-5 rounded-2xl bg-white/60 border border-[#e7e0d7]">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="min-w-0">
-                    <p className="font-bold text-[#25231f] truncate">{score.groupName}</p>
-                    <p className="text-xs text-[#b0a8a0]">{score.reviewCount}명 평가</p>
+                    <p className="font-bold text-[#25231f] truncate">{review.groupName}</p>
+                    <p className="text-xs text-[#b0a8a0] truncate">
+                      {review.courseName} · {ROLE_LABELS[review.role]}
+                    </p>
                   </div>
                   <span className="badge bg-[#4a8768]/10 text-[#4a8768]">
-                    {score.avgContributionScore.toFixed(0)}점
+                    {review.contributionScore}점
                   </span>
                 </div>
-                <p className="text-sm text-[#7a7169] leading-relaxed">
-                  기여도 {score.avgContributing.toFixed(1)} · 소통 {score.avgInteracting.toFixed(1)} · 일정관리 {score.avgKeepingOnTrack.toFixed(1)}
+                <p className="text-sm text-[#25231f] leading-relaxed line-clamp-3">
+                  {review.comment}
                 </p>
-                <p className="text-sm text-[#7a7169] leading-relaxed mt-1">
-                  품질 {score.avgExpectingQuality.toFixed(1)} · 지식/기술 {score.avgKnowledgeSkills.toFixed(1)}
+                <p className="text-xs text-[#b0a8a0] mt-3">
+                  {review.reviewerName} 작성 · 소통 {review.interacting} · 품질 {review.expectingQuality} · 지식/기술 {review.knowledgeSkills}
                 </p>
               </div>
             ))}

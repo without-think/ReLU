@@ -32,6 +32,8 @@ public enum ErrorCode {
     PEER_REVIEW_ALREADY_SUBMITTED(HttpStatus.BAD_REQUEST, "G005", "이미 해당 팀원에 대한 동료평가를 제출했습니다."),
     FILE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "G006", "파일 업로드에 실패했습니다."),
     FILE_NOT_FOUND(HttpStatus.NOT_FOUND, "G007", "파일을 찾을 수 없습니다."),
+    PROJECT_NOT_COMPLETED(HttpStatus.BAD_REQUEST, "G008", "프로젝트 종료 후 동료평가를 진행할 수 있습니다."),
+    PROJECT_DEADLINE_REQUIRED(HttpStatus.BAD_REQUEST, "G009", "프로젝트 마감일은 현재 이후로 설정해야 합니다."),
 
     // Ecampus
     ECAMPUS_AUTH_FAILED(HttpStatus.UNAUTHORIZED, "E001", "e캠퍼스 로그인에 실패했습니다."),

@@ -18,6 +18,8 @@ export interface AuthUserInfo {
 }
 
 export interface UserInfo {
+  id?: number
+  userId?: number
   nickname: string
   student_id?: string
   fullName?: string
@@ -163,6 +165,7 @@ export interface GroupSummary {
   professor: string | null
   memberCount: number
   joined: boolean
+  completed: boolean
 }
 
 export interface GroupDetail {
@@ -176,6 +179,7 @@ export interface GroupDetail {
   courseName: string | null
   professor: string | null
   rolesConfirmed: boolean
+  completed: boolean
   creatorId: number | null
   members: TeamMember[]
 }
@@ -324,8 +328,30 @@ export interface MemberScore {
   reviewCount: number
 }
 
+export interface ReviewComment {
+  reviewerId: number
+  reviewerName: string
+  revieweeId: number
+  revieweeName: string
+  contributionScore: number
+  contributing: number
+  interacting: number
+  keepingOnTrack: number
+  expectingQuality: number
+  knowledgeSkills: number
+  comment: string
+  createdAt: string
+}
+
+export interface SubmittedReview {
+  reviewerId: number
+  revieweeId: number
+}
+
 export interface PeerReviewSummary {
   memberScores: MemberScore[]
+  reviewComments?: ReviewComment[]
+  submittedReviews?: SubmittedReview[]
 }
 
 export interface PeerReviewDetail {
@@ -403,4 +429,32 @@ export interface EcampusCourse {
 export interface EcampusRequest {
   studentId: string
   password: string
+}
+
+// Chat Types
+export interface GroupMessage {
+  id: number
+  groupId: number
+  senderId: number
+  senderName: string
+  content: string
+  createdAt: string
+  editedAt: string | null
+  deleted: boolean
+  // 답장 관련
+  replyToId: number | null
+  replyToContent: string | null
+  replyToSenderName: string | null
+  // 언급된 사용자
+  mentionedUserIds: number[]
+}
+
+export interface SendMessageRequest {
+  content: string
+  replyToId?: number
+  mentionedUserIds?: number[]
+}
+
+export interface ReadReceiptResponse {
+  readStatus: Record<number, number> // userId -> lastReadMessageId
 }

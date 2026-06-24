@@ -123,6 +123,13 @@ public class GroupController {
         return CommonResponse.success(groupService.confirmRoles(groupId, userDetails.getUserId()));
     }
 
+    @PostMapping("/{groupId}/complete")
+    public CommonResponse<GroupDetailResponse> completeProject(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long groupId) {
+        return CommonResponse.success(groupService.completeProject(groupId, userDetails.getUserId()));
+    }
+
     @PutMapping("/{groupId}/members/{memberId}/additional-roles")
     public CommonResponse<MemberResponse> setAdditionalRoles(
             @AuthenticationPrincipal CustomUserDetails userDetails,
@@ -238,5 +245,47 @@ public class GroupController {
     public CommonResponse<List<PeerReviewDetailResponse>> getPeerReviewDetails(
             @PathVariable Long groupId) {
         return CommonResponse.success(groupService.getPeerReviewDetails(groupId));
+    }
+
+    // --- Chat Messages ---
+
+    @GetMapping("/{groupId}/messages")
+    public CommonResponse<List<MessageResponse>> getMessages(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long groupId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return CommonResponse.success(groupService.getMessages(groupId, userDetails.getUserId(), page, size));
+    }
+
+    @PostMapping("/{groupId}/messages")
+    public CommonResponse<MessageResponse> sendMessage(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long groupId,
+            @RequestBody SendMessageRequest request) {
+        return CommonResponse.success(groupService.sendMessage(groupId, userDetails.getUserId(), request));
+    }
+
+    @DeleteMapping("/messages/{messageId}")
+    public CommonResponse<Void> deleteMessage(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long messageId) {
+        groupService.deleteMessage(messageId, userDetails.getUserId());
+        return CommonResponse.success("메시지가 삭제되었습니다.", null);
+    }
+
+    @PostMapping("/{groupId}/messages/{messageId}/read")
+    public CommonResponse<Void> markAsRead(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long groupId,
+            @PathVariable Long messageId) {
+        groupService.markAsRead(groupId, userDetails.getUserId(), messageId);
+        return CommonResponse.success("읽음 처리되었습니다.", null);
+    }
+
+    @GetMapping("/{groupId}/read-receipts")
+    public CommonResponse<ReadReceiptResponse> getReadReceipts(
+            @PathVariable Long groupId) {
+        return CommonResponse.success(groupService.getReadReceipts(groupId));
     }
 }

@@ -67,6 +67,14 @@ public class Group extends BaseTimeEntity {
 
     public void confirmRoles() { this.rolesConfirmed = true; }
 
+    public void completeProject() {
+        this.projectDeadline = LocalDateTime.now();
+    }
+
+    public boolean isProjectCompleted() {
+        return projectDeadline != null && !projectDeadline.isAfter(LocalDateTime.now());
+    }
+
     public void updateSettings(String name, String description, String githubRepoUrl, LocalDateTime projectDeadline) {
         if (name != null) this.name = name;
         if (description != null) this.description = description;

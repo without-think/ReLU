@@ -18,6 +18,7 @@ public class GroupDetailResponse {
     private final String courseName;
     private final String professor;
     private final boolean rolesConfirmed;
+    private final boolean completed;
     private final Long creatorId;
     private final List<MemberResponse> members;
 
@@ -32,6 +33,7 @@ public class GroupDetailResponse {
         this.courseName = group.getCourseName();
         this.professor = group.getProfessor();
         this.rolesConfirmed = group.isRolesConfirmed();
+        this.completed = group.isProjectCompleted();
         this.creatorId = group.getCreatedBy() != null ? group.getCreatedBy().getId() : null;
         this.members = members;
     }

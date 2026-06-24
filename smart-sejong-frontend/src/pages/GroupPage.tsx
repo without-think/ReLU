@@ -10,7 +10,7 @@ import {
   CheckCircle2, XCircle, AlertCircle, Eye, EyeOff, Calendar, Trash2, Edit2,
 } from 'lucide-react'
 import {
-  RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip,
 } from 'recharts'
 import {
   format, parseISO, isPast, differenceInHours, differenceInDays,
@@ -18,6 +18,7 @@ import {
 import { ko } from 'date-fns/locale'
 import { TimetableGrid } from '@/components/timetable/TimetableGrid'
 import { GanttTab } from '@/components/group/GanttTab'
+import { ChatPanel } from '@/components/group/ChatPanel'
 import type {
   GroupSummary, GroupDetail, TeamMember, MemberRole, ProjectTask,
   TaskStatus, AvailabilitySlot, PeerReviewRequest,
@@ -85,7 +86,7 @@ function tempColor(temp: number) {
 
 // ─── main page ────────────────────────────────────────────────────────────────
 
-type Tab = 'home' | 'timetable' | 'availability' | 'roles' | 'tasks' | 'gantt' | 'review' | 'ecampus' | 'ai'
+type Tab = 'home' | 'timetable' | 'availability' | 'roles' | 'tasks' | 'gantt' | 'review' | 'ecampus' | 'ai' | 'chat'
 type TeamView = 'mine' | 'find'
 
 interface GroupRouteState {
@@ -163,9 +164,9 @@ export default function GroupPage() {
     queryFn: () => api.getGroupDetail(selectedGroupId!),
     enabled: !!selectedGroupId,
     refetchInterval: (query) => {
-      // 역할 확정 전(온보딩 중)에는 3초마다 폴링, 확정 후엔 중단
+      // 역할 확정/프로젝트 종료 상태는 다른 사용자 화면에도 반영되어야 하므로 완료 전에는 계속 폴링
       const data = query.state.data as import('@/types').GroupDetail | undefined
-      return data?.rolesConfirmed ? false : 3000
+      return data?.completed ? false : 3000
     },
   })
 
@@ -249,6 +250,7 @@ export default function GroupPage() {
 
   const allTabs: { id: Tab; label: string }[] = [
     { id: 'home', label: '팀 홈' },
+    { id: 'chat', label: '채팅' },
     { id: 'availability', label: '가능 시간' },
     { id: 'roles', label: '역할 배분' },
     { id: 'review', label: '동료 평가' },
@@ -464,10 +466,13 @@ export default function GroupPage() {
                 <RolesTab group={groupDetail} onRefresh={() => queryClient.invalidateQueries({ queryKey: ['group', selectedGroupId] })} />
               )}
               {activeTab === 'review' && (
-                <ReviewTab groupId={selectedGroupId} members={groupDetail.members} isProfessor={isProfessor} />
+                <ReviewTab groupId={selectedGroupId} members={groupDetail.members} isProfessor={isProfessor} completed={groupDetail.completed} />
               )}
               {activeTab === 'ai' && (
                 <AiAnalysisTab groupId={selectedGroupId} groupName={groupDetail.name} members={groupDetail.members} />
+              )}
+              {activeTab === 'chat' && (
+                <ChatPanel groupId={selectedGroupId} members={groupDetail.members} />
               )}
               {activeTab === 'ecampus' && (
                 activeGroupCourse ? (
@@ -802,6 +807,8 @@ function CourseAssignmentPanel({ course }: { course: EcampusCourse }) {
 // ─── HomeTab ───────────────────────────────────────────────────────────────────
 
 function HomeTab({ group, onRefresh }: { group: GroupDetail; onRefresh: () => void }) {
+  const queryClient = useQueryClient()
+  const user = useAuthStore(s => s.user)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({
     name: group.name,
@@ -818,7 +825,28 @@ function HomeTab({ group, onRefresh }: { group: GroupDetail; onRefresh: () => vo
       projectDeadline: form.projectDeadline || null,
     }),
     onSuccess: () => { toast.success('저장되었습니다.'); setEditing(false); onRefresh() },
+    onError: (e: { response?: { data?: { message?: string } } }) => {
+      toast.error(e?.response?.data?.message ?? '저장에 실패했습니다.')
+    },
   })
+
+  const completeMutation = useMutation({
+    mutationFn: () => api.completeGroup(group.id),
+    onSuccess: () => {
+      toast.success('프로젝트가 종료되었습니다. 이제 동료평가를 진행할 수 있습니다.')
+      queryClient.invalidateQueries({ queryKey: ['groups'] })
+      queryClient.invalidateQueries({ queryKey: ['groups', group.ecampusCourseId] })
+      onRefresh()
+    },
+    onError: (e: { response?: { data?: { message?: string } } }) => {
+      toast.error(e?.response?.data?.message ?? '프로젝트 종료에 실패했습니다.')
+    },
+  })
+
+  const isLeader = group.creatorId === user?.id || group.members.some(m => (
+    m.role === 'LEADER' && (m.studentId === user?.student_id || m.name === user?.fullName || m.name === user?.nickname)
+  ))
+  const minDeadline = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 
   return (
     <div className="space-y-4">
@@ -850,7 +878,7 @@ function HomeTab({ group, onRefresh }: { group: GroupDetail; onRefresh: () => vo
             </div>
             <div>
               <label className="text-xs text-[#7a7169] mb-1 block">프로젝트 마감일</label>
-              <input type="datetime-local" className="input" value={form.projectDeadline} onChange={e => setForm(f => ({ ...f, projectDeadline: e.target.value }))} />
+              <input type="datetime-local" min={minDeadline} className="input" value={form.projectDeadline} onChange={e => setForm(f => ({ ...f, projectDeadline: e.target.value }))} />
             </div>
             <button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending} className="btn-primary text-sm w-full">
               {updateMutation.isPending ? '저장 중...' : '저장'}
@@ -892,6 +920,30 @@ function HomeTab({ group, onRefresh }: { group: GroupDetail; onRefresh: () => vo
         <h3 className="font-bold text-[#25231f] mb-3">팀원 온도</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {group.members.map(m => <MemberCard key={m.userId} member={m} />)}
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h3 className="font-bold text-[#25231f]">프로젝트 종료</h3>
+            <p className="text-sm text-[#7a7169] mt-1">
+              마감 시간이 지나거나 테스트용 종료 버튼을 누르면 완료 프로젝트가 되고 동료평가가 열립니다.
+            </p>
+          </div>
+          {group.completed ? (
+            <span className="badge bg-[#4a8768]/10 text-[#4a8768] self-start sm:self-auto">완료됨</span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => completeMutation.mutate()}
+              disabled={!isLeader || completeMutation.isPending}
+              className="btn-danger disabled:opacity-50 disabled:cursor-not-allowed"
+              title={!isLeader ? '팀장만 프로젝트를 종료할 수 있습니다.' : undefined}
+            >
+              {completeMutation.isPending ? '종료 중...' : '프로젝트 종료'}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -1074,7 +1126,7 @@ function RolesTab({ group, onRefresh }: {
   const isCreator = myMember?.userId === creatorId
   const allReady = members.every(m => m.preferenceReady)
 
-  const allRoles: MemberRole[] = ['LEADER', 'RESEARCHER', 'PRESENTER', 'BACKEND', 'FRONTEND', 'AI']
+  const assignableRoles: MemberRole[] = ['UNASSIGNED', 'RESEARCHER', 'PRESENTER', 'BACKEND', 'FRONTEND', 'AI']
 
   const [pref, setPref] = useState({
     preferredRole: (myMember?.preferredRole ?? null) as MemberRole | null,
@@ -1122,6 +1174,13 @@ function RolesTab({ group, onRefresh }: {
     onSuccess: () => { toast.success('역할이 변경되었습니다.'); onRefresh() },
     onError: () => toast.error('역할 변경에 실패했습니다.'),
   })
+
+  const toggleLeader = (member: TeamMember) => {
+    assignMutation.mutate({
+      memberId: member.memberId,
+      role: member.role === 'LEADER' ? 'UNASSIGNED' : 'LEADER',
+    })
+  }
 
   const radarData = (m: TeamMember) => [
     { subject: '기여', value: m.selfContributing * 20 },
@@ -1310,15 +1369,38 @@ function RolesTab({ group, onRefresh }: {
 
                   {/* 역할 직접 배정 select (확정 전만) */}
                   {!rolesConfirmed && (
-                    <select
-                      className="input text-sm py-1.5 w-28 flex-shrink-0"
-                      value={m.role}
-                      onChange={e => assignMutation.mutate({ memberId: m.memberId, role: e.target.value as MemberRole })}
-                    >
-                      {allRoles.map(r => (
-                        <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-                      ))}
-                    </select>
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      <button
+                        type="button"
+                        onClick={() => toggleLeader(m)}
+                        disabled={assignMutation.isPending}
+                        aria-pressed={m.role === 'LEADER'}
+                        className={`relative h-8 w-16 rounded-full px-1 text-[11px] font-extrabold transition-all ${
+                          m.role === 'LEADER'
+                            ? 'bg-[#4a8768] text-white'
+                            : 'bg-[#e7e0d7] text-[#7a7169]'
+                        }`}
+                      >
+                        <span
+                          className={`absolute left-1 top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${
+                            m.role === 'LEADER' ? 'translate-x-8' : 'translate-x-0'
+                          }`}
+                        />
+                        <span className={`relative ${m.role === 'LEADER' ? 'mr-6' : 'ml-6'}`}>
+                          {m.role === 'LEADER' ? 'ON' : 'OFF'}
+                        </span>
+                      </button>
+                      <select
+                        className="input text-sm py-1.5 w-28 flex-shrink-0"
+                        value={m.role === 'LEADER' ? 'UNASSIGNED' : m.role}
+                        onChange={e => assignMutation.mutate({ memberId: m.memberId, role: e.target.value as MemberRole })}
+                        disabled={m.role === 'LEADER' || assignMutation.isPending}
+                      >
+                        {assignableRoles.map(r => (
+                          <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                        ))}
+                      </select>
+                    </div>
                   )}
                 </div>
 
@@ -1395,7 +1477,7 @@ function RolesTab({ group, onRefresh }: {
 
 // ─── TasksTab ─────────────────────────────────────────────────────────────────
 
-function TasksTab({ groupId, members }: { groupId: number; members: TeamMember[] }) {
+export function _TasksTab({ groupId, members }: { groupId: number; members: TeamMember[] }) {
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [editingTask, setEditingTask] = useState<ProjectTask | null>(null)
@@ -1816,10 +1898,11 @@ function ProfessorReviewView({ details, members }: { groupId: number; details: P
 
 // ─── ReviewTab ────────────────────────────────────────────────────────────────
 
-function ReviewTab({ groupId, members, isProfessor }: { groupId: number; members: TeamMember[]; isProfessor?: boolean }) {
+function ReviewTab({ groupId, members, isProfessor, completed }: { groupId: number; members: TeamMember[]; isProfessor?: boolean; completed: boolean }) {
   const queryClient = useQueryClient()
+  const user = useAuthStore(s => s.user)
   const [selected, setSelected] = useState<TeamMember | null>(null)
-  const [scores, setScores] = useState({
+  const defaultScores = {
     contributionScore: 20,
     contributing: 3,
     interacting: 3,
@@ -1827,7 +1910,8 @@ function ReviewTab({ groupId, members, isProfessor }: { groupId: number; members
     expectingQuality: 3,
     knowledgeSkills: 3,
     comment: '',
-  })
+  }
+  const [scores, setScores] = useState(defaultScores)
 
   const { data: summary } = useQuery({
     queryKey: ['reviews', groupId],
@@ -1867,34 +1951,67 @@ function ReviewTab({ groupId, members, isProfessor }: { groupId: number; members
     { key: 'knowledgeSkills', label: '역량' },
   ] as const
 
+  const myMember = members.find(m => (
+    m.studentId === user?.student_id || m.name === user?.fullName || m.name === user?.nickname
+  ))
+  const myUserId = user?.id ?? user?.userId ?? myMember?.userId
+  const submittedRevieweeIds = new Set(
+    (summary?.submittedReviews ?? [])
+      .filter(review => review.reviewerId === myUserId)
+      .map(review => review.revieweeId)
+  )
+  const isSelfSelected = !!selected && selected.userId === myUserId
+  const selectableMembers = members.map(member => ({
+    member,
+    alreadySubmitted: submittedRevieweeIds.has(member.userId),
+  }))
+
+  const selectMember = (member: TeamMember, alreadySubmitted: boolean) => {
+    if (alreadySubmitted) return
+    setSelected(prev => prev?.userId === member.userId ? null : member)
+    setScores(defaultScores)
+  }
+
   return (
     <div className="card space-y-6">
       <div>
         <h3 className="font-bold text-[#25231f]">동료 평가</h3>
-        <p className="text-xs text-[#b0a8a0]">팀원들의 기여도와 5가지 역량을 평가해주세요</p>
+        <p className="text-xs text-[#b0a8a0]">
+          {completed ? '프로젝트 종료 후 팀원들의 기여도와 역량을 평가해주세요' : '프로젝트 종료 후 동료평가를 진행할 수 있습니다'}
+        </p>
       </div>
 
+      {!completed && (
+        <div className="rounded-2xl border border-[#e7e0d7] bg-[#f8f5f0] p-5 text-sm text-[#7a7169]">
+          프로젝트가 아직 진행 중입니다. 마감 시간이 지나거나 팀 홈의 프로젝트 종료 버튼을 누른 뒤 동료평가를 제출할 수 있습니다.
+        </div>
+      )}
+
       {/* Member selector */}
-      <div>
+      {completed && <div>
         <p className="text-sm text-[#7a7169] mb-2 font-medium">평가할 팀원 선택</p>
         <div className="flex flex-wrap gap-2">
-          {members.map(m => (
+          {selectableMembers.map(({ member: m, alreadySubmitted }) => (
             <button
               key={m.userId}
-              onClick={() => setSelected(prev => prev?.userId === m.userId ? null : m)}
+              onClick={() => selectMember(m, alreadySubmitted)}
+              disabled={alreadySubmitted}
               className={`px-3.5 py-1.5 rounded-full text-sm font-bold border-2 transition-all ${
+                alreadySubmitted
+                  ? 'border-[#e7e0d7] bg-[#f2eee8] text-[#b0a8a0] cursor-not-allowed'
+                  :
                 selected?.userId === m.userId
                   ? 'border-[#4a8768] bg-[#4a8768]/10 text-[#4a8768]'
                   : 'border-[#e7e0d7] hover:border-[#d0c8bf] text-[#7a7169]'
               }`}
             >
-              {m.name}
+              {m.name}{m.userId === myUserId ? ' (나)' : ''}{alreadySubmitted ? ' · 완료' : ''}
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
-      {selected && (
+      {completed && selected && (
         <div className="space-y-4 border-t border-[#e7e0d7] pt-4">
           <p className="font-bold text-[#25231f]">{selected.name} 평가</p>
 
@@ -1913,7 +2030,7 @@ function ReviewTab({ groupId, members, isProfessor }: { groupId: number; members
           </div>
 
           {/* 5 dimension sliders */}
-          {dimensions.map(d => (
+          {!isSelfSelected && dimensions.map(d => (
             <div key={d.key}>
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-[#7a7169] font-medium">{d.label}</span>
@@ -1935,7 +2052,7 @@ function ReviewTab({ groupId, members, isProfessor }: { groupId: number; members
           ))}
 
           {/* Comment */}
-          <div>
+          {!isSelfSelected && <div>
             <label className="text-sm text-[#7a7169] font-medium block mb-1">코멘트 (선택)</label>
             <textarea
               className="input resize-none text-sm"
@@ -1944,7 +2061,13 @@ function ReviewTab({ groupId, members, isProfessor }: { groupId: number; members
               value={scores.comment}
               onChange={e => setScores(s => ({ ...s, comment: e.target.value }))}
             />
-          </div>
+          </div>}
+
+          {isSelfSelected && (
+            <p className="rounded-2xl bg-[#f8f5f0] border border-[#e7e0d7] p-4 text-sm text-[#7a7169]">
+              본인 평가는 전체 기여도 점수만 입력할 수 있습니다.
+            </p>
+          )}
 
           <button
             onClick={() => submitMutation.mutate()}
@@ -1981,16 +2104,17 @@ function ReviewTab({ groupId, members, isProfessor }: { groupId: number; members
                     <ResponsiveContainer width="100%" height="100%">
                       <RadarChart
                         data={[
-                          { subject: '기여', value: ms.avgContributing * 20 },
-                          { subject: '소통', value: ms.avgInteracting * 20 },
-                          { subject: '일정', value: ms.avgKeepingOnTrack * 20 },
-                          { subject: '품질', value: ms.avgExpectingQuality * 20 },
-                          { subject: '역량', value: ms.avgKnowledgeSkills * 20 },
+                          { subject: '기여', value: ms.avgContributing },
+                          { subject: '소통', value: ms.avgInteracting },
+                          { subject: '일정', value: ms.avgKeepingOnTrack },
+                          { subject: '품질', value: ms.avgExpectingQuality },
+                          { subject: '역량', value: ms.avgKnowledgeSkills },
                         ]}
                         margin={{ top: 4, right: 4, bottom: 4, left: 4 }}
                       >
                         <PolarGrid />
                         <PolarAngleAxis dataKey="subject" tick={{ fontSize: 7 }} />
+                        <PolarRadiusAxis domain={[0, 5]} tick={false} axisLine={false} />
                         <Radar dataKey="value" fill="#4a8768" fillOpacity={0.45} stroke="#4a8768" />
                       </RadarChart>
                     </ResponsiveContainer>
@@ -2011,6 +2135,8 @@ function CreateGroupModal({ course, onClose, onCreated }: {
   course: EcampusCourse | null; onClose: () => void; onCreated: (id: number) => void
 }) {
   const [form, setForm] = useState({ name: '', description: '', githubRepoUrl: '', projectDeadline: '' })
+  const minDeadline = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+  const hasValidDeadline = !!form.projectDeadline && new Date(form.projectDeadline).getTime() > Date.now()
 
   const createMutation = useMutation({
     mutationFn: () => api.createGroup({
@@ -2025,6 +2151,9 @@ function CreateGroupModal({ course, onClose, onCreated }: {
     onSuccess: (data) => {
       toast.success(`팀 생성! 초대코드: ${data.inviteCode}`)
       onCreated(data.groupId)
+    },
+    onError: (e: { response?: { data?: { message?: string } } }) => {
+      toast.error(e?.response?.data?.message ?? '팀 생성에 실패했습니다.')
     },
   })
 
@@ -2044,13 +2173,14 @@ function CreateGroupModal({ course, onClose, onCreated }: {
         <input className="input" placeholder="GitHub 레포 URL (선택)" value={form.githubRepoUrl}
           onChange={e => setForm(f => ({ ...f, githubRepoUrl: e.target.value }))} />
         <div>
-          <label className="text-xs text-gray-500 block mb-1">프로젝트 마감일 (선택)</label>
-          <input type="datetime-local" className="input" value={form.projectDeadline}
+          <label className="text-xs text-gray-500 block mb-1">프로젝트 마감일 *</label>
+          <input type="datetime-local" min={minDeadline} className="input" value={form.projectDeadline}
             onChange={e => setForm(f => ({ ...f, projectDeadline: e.target.value }))} />
+          <p className="text-xs text-[#b0a8a0] mt-1">현재 시간 이후로 설정해야 팀을 생성할 수 있습니다.</p>
         </div>
         <button
           onClick={() => createMutation.mutate()}
-          disabled={!form.name || createMutation.isPending}
+          disabled={!form.name || !hasValidDeadline || createMutation.isPending}
           className="btn-primary w-full"
         >
           {createMutation.isPending ? '생성 중...' : '팀 생성'}
@@ -2121,7 +2251,7 @@ function Modal({ title, onClose, children }: {
 
 // ─── TimetableTab ────────────────────────────────────────────────────────────
 
-function TimetableTab() {
+export function _TimetableTab() {
   const queryClient = useQueryClient()
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [isCreating, setIsCreating] = useState(false)
@@ -2411,6 +2541,7 @@ function AiAnalysisTab({ groupId, groupName }: { groupId: number; groupName: str
                 <RadarChart data={radarData(ms)} margin={{ top: 4, right: 12, bottom: 4, left: 12 }}>
                   <PolarGrid />
                   <PolarAngleAxis dataKey="dim" tick={{ fontSize: 10, fill: '#6b7280' }} />
+                  <PolarRadiusAxis domain={[0, 5]} tick={false} axisLine={false} />
                   <Radar
                     dataKey="score"
                     stroke={MEMBER_COLORS[i % MEMBER_COLORS.length]}

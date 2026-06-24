@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -26,6 +27,8 @@ public class GroupServiceImpl implements GroupService {
     private final AvailabilityRepository availabilityRepository;
     private final ProjectTaskRepository projectTaskRepository;
     private final PeerReviewRepository peerReviewRepository;
+    private final GroupMessageRepository groupMessageRepository;
+    private final MessageReadReceiptRepository messageReadReceiptRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
 
@@ -38,6 +41,7 @@ public class GroupServiceImpl implements GroupService {
     @Transactional
     public CreateGroupResponse createGroup(Long userId, CreateGroupRequest request) {
         User user = getUser(userId);
+        validateFutureDeadline(request.getProjectDeadline());
         String inviteCode = generateUniqueInviteCode();
         Group group = Group.builder()
                 .name(request.getName())
@@ -67,21 +71,29 @@ public class GroupServiceImpl implements GroupService {
         if (user.getRole() != null && user.getRole().name().equals("PROFESSOR")) {
             String professorName = user.getFullName();
             return groupRepository.findByProfessorContainingIgnoreCase(professorName).stream()
-                    .map(group -> new GroupSummaryResponse(
-                            group,
-                            groupMemberRepository.findByGroup(group).size(),
-                            groupMemberRepository.existsByGroupAndUser(group, user)
-                    ))
+                    .map(group -> {
+                        int count = groupMemberRepository.findByGroup(group).size();
+                        return count == 0 ? null : new GroupSummaryResponse(
+                                group,
+                                count,
+                                groupMemberRepository.existsByGroupAndUser(group, user)
+                        );
+                    })
+                    .filter(Objects::nonNull)
                     .collect(Collectors.toList());
         }
 
         if (ecampusCourseId != null && !ecampusCourseId.isBlank()) {
             return groupRepository.findByEcampusCourseId(ecampusCourseId).stream()
-                    .map(group -> new GroupSummaryResponse(
-                            group,
-                            groupMemberRepository.findByGroup(group).size(),
-                            groupMemberRepository.existsByGroupAndUser(group, user)
-                    ))
+                    .map(group -> {
+                        int count = groupMemberRepository.findByGroup(group).size();
+                        return count == 0 ? null : new GroupSummaryResponse(
+                                group,
+                                count,
+                                groupMemberRepository.existsByGroupAndUser(group, user)
+                        );
+                    })
+                    .filter(Objects::nonNull)
                     .collect(Collectors.toList());
         }
 
@@ -109,6 +121,7 @@ public class GroupServiceImpl implements GroupService {
     public void updateGroup(Long groupId, Long userId, UpdateGroupRequest request) {
         Group group = getGroup(groupId);
         assertLeader(group, getUser(userId));
+        validateFutureDeadline(request.getProjectDeadline());
         group.updateSettings(request.getName(), request.getDescription(),
                 request.getGithubRepoUrl(), request.getProjectDeadline());
     }
@@ -181,9 +194,18 @@ public class GroupServiceImpl implements GroupService {
     @Transactional
     public MemberResponse assignRole(Long groupId, Long memberId, Long requestingUserId, AssignRoleRequest request) {
         Group group = getGroup(groupId);
-        assertLeader(group, getUser(requestingUserId));
+        assertRoleConfirmAuthority(group, getUser(requestingUserId));
         GroupMember target = groupMemberRepository.findById(memberId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
+        if (!target.getGroup().getId().equals(groupId)) {
+            throw new CustomException(ErrorCode.GROUP_NOT_FOUND);
+        }
+        if (request.getRole() == MemberRole.LEADER) {
+            groupMemberRepository.findByGroupIdWithUser(groupId).stream()
+                    .filter(member -> !member.getId().equals(target.getId()))
+                    .filter(member -> member.getRole() == MemberRole.LEADER)
+                    .forEach(member -> member.assignRole(MemberRole.UNASSIGNED));
+        }
         target.assignRole(request.getRole());
         return new MemberResponse(target);
     }
@@ -217,9 +239,10 @@ public class GroupServiceImpl implements GroupService {
     @Transactional
     public GroupDetailResponse confirmRoles(Long groupId, Long userId) {
         Group group = getGroup(groupId);
-        assertLeader(group, getUser(userId));
+        assertRoleConfirmAuthority(group, getUser(userId));
 
         List<GroupMember> members = groupMemberRepository.findByGroupIdWithUser(groupId);
+        ensureSingleLeader(group, members);
         List<MemberRole> roleSlots = Arrays.asList(
                 MemberRole.BACKEND, MemberRole.FRONTEND, MemberRole.AI,
                 MemberRole.RESEARCHER, MemberRole.PRESENTER);
@@ -331,6 +354,19 @@ public class GroupServiceImpl implements GroupService {
         }
 
         group.confirmRoles();
+        List<MemberResponse> memberResponses = groupMemberRepository.findByGroupIdWithUser(groupId).stream()
+                .map(MemberResponse::new)
+                .collect(Collectors.toList());
+        return new GroupDetailResponse(group, memberResponses);
+    }
+
+    @Override
+    @Transactional
+    public GroupDetailResponse completeProject(Long groupId, Long userId) {
+        Group group = getGroup(groupId);
+        assertLeader(group, getUser(userId));
+        group.completeProject();
+
         List<MemberResponse> memberResponses = groupMemberRepository.findByGroupIdWithUser(groupId).stream()
                 .map(MemberResponse::new)
                 .collect(Collectors.toList());
@@ -523,38 +559,45 @@ public class GroupServiceImpl implements GroupService {
         assertMember(group, reviewer);
         assertMember(group, reviewee);
 
-        if (reviewer.getId().equals(reviewee.getId())) {
-            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        if (!group.isProjectCompleted()) {
+            throw new CustomException(ErrorCode.PROJECT_NOT_COMPLETED);
         }
         if (peerReviewRepository.existsByGroupIdAndReviewerAndReviewee(groupId, reviewer, reviewee)) {
             throw new CustomException(ErrorCode.PEER_REVIEW_ALREADY_SUBMITTED);
         }
 
-        boolean suspectedFreeRider = request.getContributionScore() < 10
-                || request.getContributing() <= 1
-                || request.getInteracting() <= 1;
+        boolean selfReview = reviewer.getId().equals(reviewee.getId());
+        int contributing = selfReview ? 3 : request.getContributing();
+        int interacting = selfReview ? 3 : request.getInteracting();
+        int keepingOnTrack = selfReview ? 3 : request.getKeepingOnTrack();
+        int expectingQuality = selfReview ? 3 : request.getExpectingQuality();
+        int knowledgeSkills = selfReview ? 3 : request.getKnowledgeSkills();
+        String comment = selfReview ? null : request.getComment();
+
+        boolean suspectedFreeRider = !selfReview && (request.getContributionScore() < 10
+                || contributing <= 1
+                || interacting <= 1);
 
         PeerReview review = PeerReview.builder()
                 .group(group).reviewer(reviewer).reviewee(reviewee)
                 .contributionScore(request.getContributionScore())
-                .contributing(request.getContributing())
-                .interacting(request.getInteracting())
-                .keepingOnTrack(request.getKeepingOnTrack())
-                .expectingQuality(request.getExpectingQuality())
-                .knowledgeSkills(request.getKnowledgeSkills())
-                .comment(request.getComment())
+                .contributing(contributing)
+                .interacting(interacting)
+                .keepingOnTrack(keepingOnTrack)
+                .expectingQuality(expectingQuality)
+                .knowledgeSkills(knowledgeSkills)
+                .comment(comment)
                 .suspectedFreeRider(suspectedFreeRider)
                 .build();
         peerReviewRepository.save(review);
 
-        // Adjust temperature based on avg score
-        double avgScore = (request.getContributing() + request.getInteracting()
-                + request.getKeepingOnTrack() + request.getExpectingQuality()
-                + request.getKnowledgeSkills()) / 5.0;
-        double delta = (avgScore - 3.0) * 0.2; // neutral=3 -> 0 delta
-        GroupMember member = groupMemberRepository.findByGroupAndUser(group, reviewee).orElse(null);
-        if (member != null) {
-            member.adjustTemperature(delta);
+        if (!selfReview) {
+            double avgScore = (contributing + interacting + keepingOnTrack + expectingQuality + knowledgeSkills) / 5.0;
+            double delta = (avgScore - 3.0) * 0.2; // neutral=3 -> 0 delta
+            GroupMember member = groupMemberRepository.findByGroupAndUser(group, reviewee).orElse(null);
+            if (member != null) {
+                member.adjustTemperature(delta);
+            }
         }
     }
 
@@ -591,7 +634,32 @@ public class GroupServiceImpl implements GroupService {
                     tempDelta, freeRider, received.size());
         }).collect(Collectors.toList());
 
-        return new PeerReviewSummaryResponse(scores);
+        List<PeerReviewSummaryResponse.ReviewCommentDto> comments = allReviews.stream()
+                .filter(review -> review.getComment() != null && !review.getComment().isBlank())
+                .map(review -> new PeerReviewSummaryResponse.ReviewCommentDto(
+                        review.getReviewer().getId(),
+                        review.getReviewer().getFullName(),
+                        review.getReviewee().getId(),
+                        review.getReviewee().getFullName(),
+                        review.getContributionScore(),
+                        review.getContributing(),
+                        review.getInteracting(),
+                        review.getKeepingOnTrack(),
+                        review.getExpectingQuality(),
+                        review.getKnowledgeSkills(),
+                        review.getComment(),
+                        review.getCreatedAt()
+                ))
+                .collect(Collectors.toList());
+
+        List<PeerReviewSummaryResponse.SubmittedReviewDto> submittedReviews = allReviews.stream()
+                .map(review -> new PeerReviewSummaryResponse.SubmittedReviewDto(
+                        review.getReviewer().getId(),
+                        review.getReviewee().getId()
+                ))
+                .collect(Collectors.toList());
+
+        return new PeerReviewSummaryResponse(scores, comments, submittedReviews);
     }
 
     @Override
@@ -625,6 +693,12 @@ public class GroupServiceImpl implements GroupService {
                 .orElseThrow(() -> new CustomException(ErrorCode.GROUP_NOT_FOUND));
     }
 
+    private void validateFutureDeadline(LocalDateTime projectDeadline) {
+        if (projectDeadline == null || !projectDeadline.isAfter(LocalDateTime.now())) {
+            throw new CustomException(ErrorCode.PROJECT_DEADLINE_REQUIRED);
+        }
+    }
+
     private void assertMember(Group group, User user) {
         if (user.getRole() == com.smartsejong.api.common.enums.UserRole.PROFESSOR) return;
         if (!groupMemberRepository.existsByGroupAndUser(group, user)) {
@@ -638,5 +712,137 @@ public class GroupServiceImpl implements GroupService {
         if (member.getRole() != MemberRole.LEADER) {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
+    }
+
+    // --- Chat ---
+
+    @Override
+    public List<MessageResponse> getMessages(Long groupId, Long userId, int page, int size) {
+        Group group = getGroup(groupId);
+        User user = getUser(userId);
+        assertMember(group, user);
+
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        List<MessageResponse> messages = groupMessageRepository.findByGroupIdOrderByCreatedAtDesc(groupId, pageable)
+                .getContent()
+                .stream()
+                .map(MessageResponse::new)
+                .collect(java.util.stream.Collectors.toList());
+
+        // DESC로 가져온 결과를 역순으로 뒤집어서 오래된 메시지가 위에, 최신 메시지가 아래에 오도록 함
+        java.util.Collections.reverse(messages);
+        return messages;
+    }
+
+    @Override
+    @Transactional
+    public MessageResponse sendMessage(Long groupId, Long userId, SendMessageRequest request) {
+        Group group = getGroup(groupId);
+        User user = getUser(userId);
+        assertMember(group, user);
+
+        // 답장 대상 메시지 조회
+        GroupMessage replyTo = null;
+        if (request.getReplyToId() != null) {
+            replyTo = groupMessageRepository.findById(request.getReplyToId())
+                    .orElse(null);
+        }
+
+        // 언급된 사용자 ID를 문자열로 변환
+        String mentionedUserIdsStr = null;
+        if (request.getMentionedUserIds() != null && !request.getMentionedUserIds().isEmpty()) {
+            mentionedUserIdsStr = request.getMentionedUserIds().stream()
+                    .map(String::valueOf)
+                    .collect(Collectors.joining(","));
+        }
+
+        GroupMessage message = GroupMessage.builder()
+                .group(group)
+                .sender(user)
+                .content(request.getContent())
+                .replyTo(replyTo)
+                .mentionedUserIds(mentionedUserIdsStr)
+                .build();
+        groupMessageRepository.save(message);
+
+        return new MessageResponse(message);
+    }
+
+    @Override
+    @Transactional
+    public void deleteMessage(Long messageId, Long userId) {
+        GroupMessage message = groupMessageRepository.findById(messageId)
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INPUT_VALUE));
+
+        User user = getUser(userId);
+
+        // 본인 메시지만 삭제 가능 (교수는 예외)
+        if (user.getRole() != com.smartsejong.api.common.enums.UserRole.PROFESSOR
+                && !message.getSender().getId().equals(userId)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        message.markDeleted();
+    }
+
+    @Override
+    @Transactional
+    public void markAsRead(Long groupId, Long userId, Long messageId) {
+        Group group = getGroup(groupId);
+        User user = getUser(userId);
+        assertMember(group, user);
+
+        MessageReadReceipt receipt = messageReadReceiptRepository
+                .findByGroupIdAndUserId(groupId, userId)
+                .orElseGet(() -> MessageReadReceipt.builder()
+                        .group(group)
+                        .user(user)
+                        .lastReadMessageId(messageId)
+                        .build());
+
+        receipt.updateLastReadMessageId(messageId);
+        messageReadReceiptRepository.save(receipt);
+    }
+
+    @Override
+    public ReadReceiptResponse getReadReceipts(Long groupId) {
+        List<Object[]> results = messageReadReceiptRepository.findReadStatusByGroupId(groupId);
+        Map<Long, Long> readStatus = results.stream()
+                .collect(Collectors.toMap(
+                        r -> (Long) r[0],
+                        r -> r[1] != null ? (Long) r[1] : 0L
+                ));
+        return new ReadReceiptResponse(readStatus);
+    }
+
+    private void assertRoleConfirmAuthority(Group group, User user) {
+        if (group.isRolesConfirmed()) {
+            assertLeader(group, user);
+            return;
+        }
+        if (group.getCreatedBy() == null || !group.getCreatedBy().getId().equals(user.getId())) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+    }
+
+    private void ensureSingleLeader(Group group, List<GroupMember> members) {
+        GroupMember leader = members.stream()
+                .filter(member -> member.getRole() == MemberRole.LEADER)
+                .findFirst()
+                .orElseGet(() -> members.stream()
+                        .filter(member -> group.getCreatedBy() != null
+                                && member.getUser().getId().equals(group.getCreatedBy().getId()))
+                        .findFirst()
+                        .orElse(members.isEmpty() ? null : members.get(0)));
+
+        if (leader == null) {
+            return;
+        }
+
+        leader.assignRole(MemberRole.LEADER);
+        members.stream()
+                .filter(member -> !member.getId().equals(leader.getId()))
+                .filter(member -> member.getRole() == MemberRole.LEADER)
+                .forEach(member -> member.assignRole(MemberRole.UNASSIGNED));
     }
 }

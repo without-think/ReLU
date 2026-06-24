@@ -20,6 +20,7 @@ public interface GroupService {
     MemberResponse updatePreference(Long groupId, Long userId, UpdatePreferenceRequest request);
     MemberResponse markReady(Long groupId, Long userId);
     GroupDetailResponse confirmRoles(Long groupId, Long userId);
+    GroupDetailResponse completeProject(Long groupId, Long userId);
     MemberResponse setAdditionalRoles(Long groupId, Long memberId, Long userId, SetAdditionalRolesRequest request);
     List<MemberResponse> getMembers(Long groupId);
 
@@ -35,4 +36,13 @@ public interface GroupService {
     void submitPeerReview(Long groupId, Long userId, SubmitPeerReviewRequest request);
     PeerReviewSummaryResponse getPeerReviewSummary(Long groupId);
     List<PeerReviewDetailResponse> getPeerReviewDetails(Long groupId);
+
+    // Chat
+    List<MessageResponse> getMessages(Long groupId, Long userId, int page, int size);
+    MessageResponse sendMessage(Long groupId, Long userId, SendMessageRequest request);
+    void deleteMessage(Long messageId, Long userId);
+
+    // Read Receipts
+    void markAsRead(Long groupId, Long userId, Long messageId);
+    ReadReceiptResponse getReadReceipts(Long groupId);
 }
