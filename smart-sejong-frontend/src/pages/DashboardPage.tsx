@@ -203,7 +203,7 @@ export default function DashboardPage() {
         <div className="flex gap-2">
           <button
             onClick={() => navigate('/group?tab=find')}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-[#e7e0d7] hover:border-[#4a8768]/30 hover:bg-[#f2eee8] transition-all text-sm font-medium text-[#25231f]"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl transition-all text-sm font-medium text-[#25231f] glass-item hover:!border-[#4a8768]/50"
           >
             <Search className="w-4 h-4" />
             팀 찾기
@@ -429,7 +429,7 @@ export default function DashboardPage() {
                     } hover:border-[#4a8768]/30`}
                   >
                     <div className="flex gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shrink-0">
+                      <div className="w-8 h-8 rounded-lg bg-white/25 flex items-center justify-center shrink-0">
                         {getNotificationIcon(notif.type)}
                       </div>
                       <div className="flex-1 min-w-0">

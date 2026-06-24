@@ -313,14 +313,14 @@ export default function ProfilePage() {
               type="button"
               onClick={() => setShowMetricHelp((current) => !current)}
               aria-label="협업 지표 설명 보기"
-              className="w-7 h-7 rounded-full bg-[#f2eee8] text-[#9a9188] font-extrabold text-sm flex items-center justify-center hover:bg-[#e7e0d7] hover:text-[#7a7169] transition-colors"
+              className="w-7 h-7 rounded-full text-[#9a9188] font-extrabold text-sm flex items-center justify-center hover:text-[#7a7169] transition-colors glass-item"
             >
               ?
             </button>
           </div>
 
           {showMetricHelp && (
-            <div className="absolute right-6 top-16 z-10 w-[min(360px,calc(100%-48px))] rounded-2xl border border-[#e7e0d7] bg-white p-4 shadow-[0_16px_42px_rgba(38,32,25,0.16)]">
+            <div className="absolute right-6 top-16 z-10 w-[min(360px,calc(100%-48px))] rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.22)', backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)', border: '1.5px solid rgba(255,255,255,0.65)', boxShadow: '0 8px 32px rgba(31,38,135,0.14), inset 0 1px 0 rgba(255,255,255,0.85)' }}>
               <p className="text-sm font-extrabold text-[#25231f] mb-3">협업 지표 설명</p>
               <div className="space-y-2">
                 {metricDescriptions.map((metric) => (
@@ -418,7 +418,7 @@ function InfoCard({
   }[tone]
 
   return (
-    <div className="p-3.5 rounded-2xl bg-white/70 border border-[#e7e0d7] flex items-center gap-3">
+    <div className="glass-item p-3.5 rounded-2xl flex items-center gap-3">
       <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
         {icon}
       </div>

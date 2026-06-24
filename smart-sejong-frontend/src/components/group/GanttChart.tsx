@@ -32,6 +32,14 @@ export function GanttChart({
   const ganttRef = useRef<Gantt | null>(null)
   const tasksMapRef = useRef<Map<string, ProjectTask>>(new Map())
 
+  // 콜백을 ref로 관리 — 함수 참조 변경이 effect를 재실행시키지 않도록
+  const onDateChangeRef = useRef(onDateChange)
+  const onProgressChangeRef = useRef(onProgressChange)
+  const onTaskClickRef = useRef(onTaskClick)
+  useEffect(() => { onDateChangeRef.current = onDateChange }, [onDateChange])
+  useEffect(() => { onProgressChangeRef.current = onProgressChange }, [onProgressChange])
+  useEffect(() => { onTaskClickRef.current = onTaskClick }, [onTaskClick])
+
   useEffect(() => {
     if (!containerRef.current || tasks.length === 0) return
 
@@ -43,9 +51,7 @@ export function GanttChart({
       const end = task.deadline
         ? format(parseISO(task.deadline), 'yyyy-MM-dd')
         : format(addDays(today, 7), 'yyyy-MM-dd')
-
       tasksMapRef.current.set(String(task.id), task)
-
       return {
         id: String(task.id),
         name: task.title,
@@ -57,8 +63,12 @@ export function GanttChart({
     })
 
     if (ganttRef.current) {
+      // 스크롤 위치 저장 후 refresh — frappe-gantt가 today로 scroll 이동하는 것 방지
+      const savedScroll = containerRef.current.scrollLeft
       ganttRef.current.refresh(ganttTasks)
-      ganttRef.current.change_view_mode(viewMode)
+      requestAnimationFrame(() => {
+        if (containerRef.current) containerRef.current.scrollLeft = savedScroll
+      })
     } else {
       ganttRef.current = new Gantt(containerRef.current, ganttTasks, {
         view_mode: viewMode,
@@ -82,39 +92,34 @@ export function GanttChart({
         },
         on_click: (task: GanttTask) => {
           const projectTask = tasksMapRef.current.get(task.id)
-          if (projectTask && onTaskClick) {
-            onTaskClick(projectTask)
-          }
+          if (projectTask) onTaskClickRef.current?.(projectTask)
         },
         on_date_change: (task: GanttTask, start: Date, end: Date) => {
-          if (onDateChange) {
-            onDateChange(
-              Number(task.id),
-              format(start, "yyyy-MM-dd'T'HH:mm:ss"),
-              format(end, "yyyy-MM-dd'T'HH:mm:ss")
-            )
-          }
+          onDateChangeRef.current?.(
+            Number(task.id),
+            format(start, "yyyy-MM-dd'T'HH:mm:ss"),
+            format(end, "yyyy-MM-dd'T'HH:mm:ss")
+          )
         },
         on_progress_change: (task: GanttTask, progress: number) => {
-          if (onProgressChange) {
-            onProgressChange(Number(task.id), progress)
-          }
+          onProgressChangeRef.current?.(Number(task.id), progress)
         },
       })
     }
+    // cleanup 없음 — gantt 인스턴스를 유지해야 스크롤 위치가 보존됨
+  }, [tasks, viewMode])
 
-    return () => {
-      if (ganttRef.current) {
-        ganttRef.current = null
-      }
-    }
-  }, [tasks, viewMode, onDateChange, onProgressChange, onTaskClick])
+  // unmount 시에만 인스턴스 해제
+  useEffect(() => {
+    return () => { ganttRef.current = null }
+  }, [])
 
   useEffect(() => {
     if (ganttRef.current) {
       ganttRef.current.change_view_mode(viewMode)
     }
   }, [viewMode])
+
 
   if (tasks.length === 0) {
     return (

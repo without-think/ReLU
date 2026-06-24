@@ -539,11 +539,19 @@ function GroupCard({ group, isSelected, onSelect }: {
   return (
     <div
       onClick={onSelect}
-      className={`min-h-[180px] p-6 rounded-[28px] border-2 cursor-pointer transition-all bg-white shadow-[0_18px_48px_rgba(38,32,25,0.10)] hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(38,32,25,0.14)] ${
-        isSelected
-          ? 'border-[#4a8768] bg-[#4a8768]/8'
-          : 'border-[#e7e0d7] hover:border-[#d0c8bf]'
+      className={`min-h-[180px] p-6 rounded-[28px] border-2 cursor-pointer transition-all hover:-translate-y-1 ${
+        isSelected ? 'border-[#4a8768]' : 'border-white/55 hover:border-[#4a8768]/50'
       }`}
+      style={{
+        background: isSelected
+          ? 'linear-gradient(145deg, rgba(74,135,104,0.18) 0%, rgba(74,135,104,0.06) 100%)'
+          : 'linear-gradient(145deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.08) 100%)',
+        backdropFilter: 'blur(6px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(6px) saturate(180%)',
+        boxShadow: isSelected
+          ? '0 8px 32px rgba(74,135,104,0.18), inset 0 1px 0 rgba(255,255,255,0.85)'
+          : '0 8px 32px rgba(31,38,135,0.12), inset 0 1px 0 rgba(255,255,255,0.90), inset 0 4px 24px rgba(255,255,255,0.16)',
+      }}
     >
       <div className="flex h-full flex-col justify-between gap-5">
         <div className="min-w-0 space-y-3">
@@ -565,7 +573,8 @@ function FindGroupCard({ group, onSelect, onJoin }: {
   return (
     <div
       onClick={() => { if (group.joined) onSelect() }}
-      className="p-3.5 rounded-2xl border-2 cursor-pointer transition-all border-[#e7e0d7] hover:border-[#d0c8bf] bg-white/70"
+      className="p-3.5 rounded-2xl border cursor-pointer transition-all border-white/55 hover:border-[#4a8768]/50"
+      style={{ background: 'linear-gradient(145deg,rgba(255,255,255,0.20) 0%,rgba(255,255,255,0.07) 100%)', backdropFilter: 'blur(6px) saturate(180%)', WebkitBackdropFilter: 'blur(6px) saturate(180%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.85)' }}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import toast from 'react-hot-toast'
@@ -93,7 +93,7 @@ export function GanttTab({ groupId, members }: GanttTabProps) {
     setForm({ title: '', description: '', assigneeId: '', startDate: '', deadline: '' })
   }
 
-  const handleTaskClick = (task: ProjectTask) => {
+  const handleTaskClick = useCallback((task: ProjectTask) => {
     setEditingTask(task)
     setForm({
       title: task.title,
@@ -103,15 +103,15 @@ export function GanttTab({ groupId, members }: GanttTabProps) {
       deadline: task.deadline ? task.deadline.substring(0, 16) : '',
     })
     setShowAddForm(false)
-  }
+  }, [])
 
-  const handleDateChange = (taskId: number, startDate: string, deadline: string) => {
+  const handleDateChange = useCallback((taskId: number, startDate: string, deadline: string) => {
     updateDatesMutation.mutate({ taskId, startDate, deadline })
-  }
+  }, [updateDatesMutation])
 
-  const handleProgressChange = (taskId: number, progress: number) => {
+  const handleProgressChange = useCallback((taskId: number, progress: number) => {
     updateProgressMutation.mutate({ taskId, progress })
-  }
+  }, [updateProgressMutation])
 
   const handleSubmit = () => {
     if (editingTask) {
@@ -280,7 +280,7 @@ export function GanttTab({ groupId, members }: GanttTabProps) {
       )}
 
       {/* Gantt Chart */}
-      <div className="border border-[#e7e0d7] rounded-2xl overflow-hidden bg-white">
+      <div className="rounded-2xl overflow-hidden bg-white">
         <GanttChart
           tasks={tasks}
           viewMode={viewMode}

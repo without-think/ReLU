@@ -49,11 +49,13 @@ export default function Layout() {
     <div className="min-h-screen" style={{ background: 'var(--screen-bg)', fontFamily: 'var(--ui-font)' }}>
       {/* Header */}
       <header
-        className="sticky top-0 z-50 backdrop-blur-md"
+        className="sticky top-0 z-50"
         style={{
-          background: 'rgba(245, 245, 244, 0.85)',
-          borderBottom: '1px solid rgba(0,0,0,0.06)',
-          boxShadow: '0 1px 12px rgba(38,32,25,0.06)',
+          background: 'rgba(255, 255, 255, 0.14)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          borderBottom: '1px solid rgba(255,255,255,0.55)',
+          boxShadow: '0 1px 24px rgba(31,38,135,0.08), inset 0 -1px 0 rgba(255,255,255,0.3)',
         }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -73,7 +75,7 @@ export default function Layout() {
                         `flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold tracking-tight transition-all duration-200 ${
                           isNavActive(item)
                             ? 'bg-[#4a8768] text-white shadow-sm'
-                            : 'text-[#7a7169] hover:bg-[#f2eee8] hover:text-[#25231f]'
+                            : 'text-[#7a7169] hover:bg-white/25 hover:text-[#25231f]'
                         }`
                       }
                     >
@@ -88,7 +90,7 @@ export default function Layout() {
             <div className="flex items-center gap-3">
               <NavLink
                 to="/profile"
-                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold tracking-tight text-[#7a7169] hover:bg-[#f2eee8] hover:text-[#25231f] transition-all duration-200"
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold tracking-tight text-[#7a7169] hover:bg-white/25 hover:text-[#25231f] transition-all duration-200"
               >
                 <User className="w-4 h-4" />
                 <span className="hidden sm:inline">{user?.nickname || '사용자'}</span>
@@ -107,10 +109,13 @@ export default function Layout() {
 
       {/* Mobile Navigation */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 backdrop-blur-md"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50"
         style={{
-          background: 'rgba(245, 245, 244, 0.92)',
-          borderTop: '1px solid rgba(0,0,0,0.06)',
+          background: 'rgba(255, 255, 255, 0.14)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          borderTop: '1px solid rgba(255,255,255,0.55)',
+          boxShadow: '0 -1px 24px rgba(31,38,135,0.08), inset 0 1px 0 rgba(255,255,255,0.4)',
         }}
       >
         <div className="flex justify-around">
