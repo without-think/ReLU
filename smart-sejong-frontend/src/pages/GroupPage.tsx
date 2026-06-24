@@ -240,6 +240,8 @@ export default function GroupPage() {
     setSearchParams(view === 'find' ? { tab: 'find' } : {})
   }
 
+  const isProfessor = user?.role === 'PROFESSOR' || user?.role === 'ADMIN'
+
   const allTabs: { id: Tab; label: string }[] = [
     { id: 'home', label: '팀 홈' },
     { id: 'availability', label: '가능 시간' },
@@ -248,13 +250,28 @@ export default function GroupPage() {
     { id: 'ai', label: 'AI 분석' },
     { id: 'ecampus', label: '과제 제출 이력' },
   ]
+
+  // 교수용 탭 (시간표, 가능시간, 과제관리, 과제제출이력 제외)
+  const professorTabs: { id: Tab; label: string }[] = [
+    { id: 'home', label: '팀 홈' },
+    { id: 'roles', label: '역할 배분' },
+    { id: 'gantt', label: '간트 차트' },
+    { id: 'review', label: '동료 평가' },
+  ]
+
   // Before roles are confirmed, only show onboarding-relevant tabs
   const onboardingTabs: { id: Tab; label: string }[] = [
     { id: 'home', label: '팀 홈' },
     { id: 'availability', label: '가능 시간' },
     { id: 'roles', label: '역할 배분' },
   ]
-  const tabs = groupDetail?.rolesConfirmed ? allTabs : onboardingTabs
+
+  const getTabs = () => {
+    if (isProfessor) return professorTabs
+    if (!groupDetail?.rolesConfirmed) return onboardingTabs
+    return allTabs
+  }
+  const tabs = getTabs()
 
   return (
     <div className="space-y-6">
