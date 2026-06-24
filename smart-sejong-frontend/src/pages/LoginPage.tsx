@@ -10,6 +10,43 @@ export default function LoginPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [studentId, setStudentId] = useState('')
   const [password, setPassword] = useState('')
+  const [professorName, setProfessorName] = useState('')
+  const [showProfessorInput, setShowProfessorInput] = useState(false)
+
+  const handleProfessorLogin = async () => {
+    const name = professorName.trim()
+    if (!name) {
+      toast.error('교수님 이름을 입력해주세요.')
+      return
+    }
+    setIsLoggingIn(true)
+    try {
+      const response = await api.professorMockLogin(name)
+      if (response.accessToken) {
+        localStorage.setItem('token', response.accessToken)
+        if (response.refreshToken) localStorage.setItem('refreshToken', response.refreshToken)
+      }
+      if (response.user) {
+        setUser({
+          nickname: response.user.fullName || name,
+          fullName: response.user.fullName,
+          studentId: response.user.studentId,
+          student_id: response.user.studentId,
+          major: response.user.major,
+          grade: response.user.grade,
+          role: response.user.role as any,
+          is_verified: true,
+          profile_image: undefined,
+        })
+      }
+      toast.success(`${name} 교수님으로 로그인됐습니다.`)
+      navigate('/group', { replace: true })
+    } catch (error: any) {
+      toast.error(error?.message || '로그인에 실패했습니다.')
+    } finally {
+      setIsLoggingIn(false)
+    }
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -168,6 +205,54 @@ export default function LoginPage() {
           <p className="text-xs mt-5 text-center" style={{ color: 'var(--text-muted)' }}>
             학번과 포털 비밀번호를 사용합니다
           </p>
+
+          <div className="mt-4 pt-4 border-t" style={{ borderColor: 'rgba(0,0,0,0.07)' }}>
+            {!showProfessorInput ? (
+              <button
+                type="button"
+                onClick={() => setShowProfessorInput(true)}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all"
+                style={{
+                  background: 'rgba(99,102,241,0.08)',
+                  color: '#6366f1',
+                  border: '1.5px dashed #6366f1',
+                }}
+              >
+                교수 가계정으로 로그인
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold" style={{ color: '#6366f1' }}>교수 가계정 (테스트용)</p>
+                <input
+                  type="text"
+                  value={professorName}
+                  onChange={(e) => setProfessorName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleProfessorLogin()}
+                  className="input"
+                  placeholder="교수님 이름 입력 (예: 홍길동)"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleProfessorLogin}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
+                    style={{ background: '#6366f1', color: '#fff' }}
+                  >
+                    교수로 로그인
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowProfessorInput(false); setProfessorName('') }}
+                    className="px-4 py-2.5 rounded-xl text-sm font-semibold"
+                    style={{ background: 'rgba(0,0,0,0.06)', color: 'var(--text-secondary)' }}
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

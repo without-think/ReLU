@@ -158,6 +158,24 @@ public class AuthServiceImpl implements AuthService {
         log.info("User {} logged out", userId);
     }
 
+    @Override
+    @Transactional
+    public AuthResponse professorMockLogin(String name) {
+        User user = userRepository.findByFullName(name)
+                .orElseGet(() -> {
+                    String mockId = "PROF_" + name.replaceAll("\\s+", "_").toUpperCase();
+                    return userRepository.findByStudentId(mockId)
+                            .orElseGet(() -> userRepository.save(User.builder()
+                                    .studentId(mockId)
+                                    .fullName(name)
+                                    .major("교수")
+                                    .role(UserRole.PROFESSOR)
+                                    .build()));
+                });
+        log.info("교수 가계정 로그인 - userId: {}, name: {}", user.getId(), name);
+        return generateAuthResponse(user);
+    }
+
     /**
      * JWT 토큰 응답 생성
      *

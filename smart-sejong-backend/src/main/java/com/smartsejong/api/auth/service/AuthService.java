@@ -39,4 +39,6 @@ public interface AuthService {
      * @param userId 로그아웃할 사용자 ID
      */
     void logout(Long userId);
+
+    AuthResponse professorMockLogin(String name);
 }

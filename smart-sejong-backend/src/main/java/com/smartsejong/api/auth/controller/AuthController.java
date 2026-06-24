@@ -80,6 +80,17 @@ public class AuthController {
             summary = "로그아웃",
             description = "로그아웃 처리합니다. (JWT 인증 필요)"
     )
+    @PostMapping("/professor-mock")
+    public ResponseEntity<CommonResponse<AuthResponse>> professorMockLogin(
+            @RequestBody java.util.Map<String, String> body) {
+        String name = body.get("name");
+        if (name == null || name.isBlank()) {
+            return ResponseEntity.badRequest().body(CommonResponse.success("이름을 입력해주세요.", null));
+        }
+        AuthResponse response = authService.professorMockLogin(name.trim());
+        return ResponseEntity.ok(CommonResponse.success("교수 가계정 로그인 성공", response));
+    }
+
     @PostMapping("/logout")
     public ResponseEntity<CommonResponse<Void>> logout(
             @AuthenticationPrincipal CustomUserDetails userDetails

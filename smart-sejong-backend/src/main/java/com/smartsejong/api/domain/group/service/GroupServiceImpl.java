@@ -62,6 +62,19 @@ public class GroupServiceImpl implements GroupService {
     @Override
     public List<GroupSummaryResponse> getMyGroups(Long userId, String ecampusCourseId) {
         User user = getUser(userId);
+
+        // 교수 계정: 담당 교수명으로 등록된 팀 전체 반환
+        if (user.getRole() != null && user.getRole().name().equals("PROFESSOR")) {
+            String professorName = user.getFullName();
+            return groupRepository.findByProfessorContainingIgnoreCase(professorName).stream()
+                    .map(group -> new GroupSummaryResponse(
+                            group,
+                            groupMemberRepository.findByGroup(group).size(),
+                            groupMemberRepository.existsByGroupAndUser(group, user)
+                    ))
+                    .collect(Collectors.toList());
+        }
+
         if (ecampusCourseId != null && !ecampusCourseId.isBlank()) {
             return groupRepository.findByEcampusCourseId(ecampusCourseId).stream()
                     .map(group -> new GroupSummaryResponse(
@@ -604,6 +617,7 @@ public class GroupServiceImpl implements GroupService {
     }
 
     private void assertMember(Group group, User user) {
+        if (user.getRole() == com.smartsejong.api.common.enums.UserRole.PROFESSOR) return;
         if (!groupMemberRepository.existsByGroupAndUser(group, user)) {
             throw new CustomException(ErrorCode.GROUP_NOT_FOUND);
         }

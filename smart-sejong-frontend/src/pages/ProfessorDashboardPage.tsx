@@ -5,18 +5,16 @@ import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import {
   Users, BookOpen, ChevronRight, AlertTriangle, TrendingUp,
-  Calendar, CheckCircle2, Clock, BarChart3, AlertCircle,
+  Calendar, CheckCircle2, BarChart3, AlertCircle,
 } from 'lucide-react'
-import { format, parseISO, differenceInDays } from 'date-fns'
-import { ko } from 'date-fns/locale'
-import type { GroupSummary, ProjectTask } from '@/types'
+import { parseISO, differenceInDays } from 'date-fns'
+import type { GroupSummary, ProjectTask, ProfessorSection } from '@/types'
 
 interface TaskWithGroup extends ProjectTask {
   groupId: number
   groupName: string
 }
 
-// 팀 상태 판단
 function getTeamStatus(progress: number, daysLeft: number | null) {
   if (daysLeft !== null && daysLeft < 0) return { label: '마감됨', color: 'text-[#b0a8a0]', bg: 'bg-[#b0a8a0]/10' }
   if (progress >= 90) return { label: '완료 임박', color: 'text-[#4a8768]', bg: 'bg-[#4a8768]/10' }
@@ -29,31 +27,32 @@ export default function ProfessorDashboardPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null)
+  const professorName = user?.fullName || user?.nickname || ''
 
-  // 전체 그룹(팀) 목록 가져오기
+  // 담당 강의 (강의시간표 기반)
+  const { data: sections = [] } = useQuery<ProfessorSection[]>({
+    queryKey: ['professor-sections', professorName],
+    queryFn: () => api.getProfessorSections(professorName),
+    enabled: !!professorName,
+  })
+
+  // 과목명으로 그룹핑 (중복 제거)
+  const courses = useMemo(() => {
+    const seen = new Map<string, { name: string; code: string; credits: number; category: string; sections: ProfessorSection[] }>()
+    sections.forEach(s => {
+      if (!seen.has(s.courseName)) {
+        seen.set(s.courseName, { name: s.courseName, code: s.courseCode, credits: s.credits, category: s.categoryDescription, sections: [] })
+      }
+      seen.get(s.courseName)!.sections.push(s)
+    })
+    return Array.from(seen.values())
+  }, [sections])
+
+  // 팀 목록 (professor name으로 필터된 그룹)
   const { data: groups = [] } = useQuery<GroupSummary[]>({
     queryKey: ['groups'],
     queryFn: () => api.getGroups(),
   })
-
-  // 담당 과목 목록 (courseName 기준으로 그룹핑)
-  const courses = useMemo(() => {
-    const courseMap = new Map<string, { name: string; professor: string | null; groups: GroupSummary[] }>()
-
-    groups.forEach(group => {
-      const courseName = group.courseName || '기타'
-      if (!courseMap.has(courseName)) {
-        courseMap.set(courseName, {
-          name: courseName,
-          professor: group.professor,
-          groups: []
-        })
-      }
-      courseMap.get(courseName)!.groups.push(group)
-    })
-
-    return Array.from(courseMap.values())
-  }, [groups])
 
   // 선택된 과목의 팀들
   const selectedCourseGroups = useMemo(() => {
@@ -140,37 +139,56 @@ export default function ProfessorDashboardPage() {
         </div>
       </div>
 
-      {/* 담당 과목 탭 */}
+      {/* 담당 과목 카드 목록 */}
       <div className="card">
-        <div className="flex items-center gap-2 mb-4">
-          <BookOpen className="w-5 h-5 text-[#4a8768]" />
-          <h2 className="font-bold text-[#25231f]">담당 과목</h2>
-        </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-[#4a8768]" />
+            <h2 className="font-bold text-[#25231f]">담당 과목</h2>
+            <span className="text-xs text-[#b0a8a0]">{courses.length}개 과목</span>
+          </div>
           <button
             onClick={() => setSelectedCourse(null)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-              selectedCourse === null
-                ? 'bg-[#4a8768] text-white'
-                : 'bg-[#f2eee8] text-[#7a7169] hover:bg-[#e7e0d7]'
-            }`}
+            className={`text-xs px-3 py-1 rounded-lg transition-all ${selectedCourse === null ? 'bg-[#4a8768] text-white' : 'bg-[#f2eee8] text-[#7a7169]'}`}
           >
-            전체 ({groups.length})
+            전체 보기
           </button>
-          {courses.map(course => (
-            <button
-              key={course.name}
-              onClick={() => setSelectedCourse(course.name)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                selectedCourse === course.name
-                  ? 'bg-[#4a8768] text-white'
-                  : 'bg-[#f2eee8] text-[#7a7169] hover:bg-[#e7e0d7]'
-              }`}
-            >
-              {course.name} ({course.groups.length})
-            </button>
-          ))}
         </div>
+        {courses.length === 0 ? (
+          <p className="text-sm text-[#b0a8a0] text-center py-4">강의시간표에서 담당 과목을 불러오는 중...</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {courses.map(course => {
+              const courseGroups = groups.filter(g => g.courseName === course.name)
+              const isSelected = selectedCourse === course.name
+              return (
+                <button
+                  key={course.name}
+                  onClick={() => setSelectedCourse(isSelected ? null : course.name)}
+                  className={`text-left p-4 rounded-xl border-2 transition-all ${
+                    isSelected
+                      ? 'border-[#4a8768] bg-[#4a8768]/5'
+                      : 'border-[#e7e0d7] bg-white/60 hover:border-[#4a8768]/40'
+                  }`}
+                >
+                  <p className="font-bold text-sm text-[#25231f] mb-1 leading-snug">{course.name}</p>
+                  <div className="flex items-center gap-2 text-xs text-[#7a7169]">
+                    <span className="px-1.5 py-0.5 rounded bg-[#f2eee8]">{course.category}</span>
+                    <span>{course.credits}학점</span>
+                    <span>·</span>
+                    <span>{course.sections.length}분반</span>
+                  </div>
+                  {courseGroups.length > 0 && (
+                    <div className="mt-2 flex items-center gap-1 text-xs text-[#4a8768] font-semibold">
+                      <Users className="w-3 h-3" />
+                      <span>팀 {courseGroups.length}개 등록</span>
+                    </div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* 수강생 현황 통계 */}

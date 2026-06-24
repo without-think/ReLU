@@ -10,4 +10,5 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
     Optional<Group> findByInviteCode(String inviteCode);
     boolean existsByInviteCode(String inviteCode);
     List<Group> findByEcampusCourseId(String ecampusCourseId);
+    List<Group> findByProfessorContainingIgnoreCase(String professor);
 }

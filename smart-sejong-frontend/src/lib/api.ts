@@ -37,6 +37,7 @@ import type {
   EcampusCourse,
   EcampusRequest,
   UpdatePreferenceRequest,
+  ProfessorSection,
 } from '@/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
@@ -169,7 +170,17 @@ class ApiClient {
       '/api/auth/login',
       request
     )
-    // CommonResponse 형식: { status: 200, message: "...", data: AuthResponse }
+    if (data.status === 200 && data.data) {
+      return data.data
+    }
+    throw new Error(data.message || '로그인에 실패했습니다.')
+  }
+
+  async professorMockLogin(name: string): Promise<AuthResponse> {
+    const { data } = await this.client.post<{ status: number; message: string; data: AuthResponse }>(
+      '/api/auth/professor-mock',
+      { name }
+    )
     if (data.status === 200 && data.data) {
       return data.data
     }
@@ -376,6 +387,14 @@ class ApiClient {
       day: (s as { day?: string; dayOfWeekKor?: string }).day ?? (s as { dayOfWeekKor?: string }).dayOfWeekKor ?? '',
       time: formatSectionTime(s as { startTime?: string; endTime?: string }),
     }))
+  }
+
+  async getProfessorSections(professorName: string): Promise<ProfessorSection[]> {
+    const { data } = await this.client.get<{ status?: number; data?: ProfessorSection[] }>(
+      '/api/courses/sections/search',
+      { params: { professor: professorName } }
+    )
+    return data?.data ?? []
   }
 
   // Timetable APIs

@@ -88,6 +88,23 @@ export interface CompletedCourseUploadResult {
   skipCount: number
 }
 
+// Professor section (강의시간표 기반)
+export interface ProfessorSection {
+  id: number
+  courseId: number
+  courseCode: string
+  courseName: string
+  credits: number
+  categoryDescription: string
+  sectionNumber: string
+  professor: string
+  dayOfWeek: string | null
+  dayOfWeekKor: string | null
+  startTime: string | null
+  endTime: string | null
+  room: string | null
+}
+
 // Course Types
 export interface CourseMaster {
   id: number
