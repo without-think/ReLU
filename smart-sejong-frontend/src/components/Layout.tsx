@@ -1,16 +1,24 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { api } from '@/lib/api'
-import { Users, User, LogOut } from 'lucide-react'
+import { Search, Users, User, LogOut } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const navItems = [
-  { path: '/group', label: '팀 프로젝트', icon: Users },
+  { path: '/group', label: '내 팀', icon: Users, tab: null },
+  { path: '/group?tab=find', label: '팀 찾기', icon: Search, tab: 'find' },
 ]
 
 export default function Layout() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, logout: clearUser } = useAuthStore()
+
+  const isNavActive = (item: typeof navItems[number]) => {
+    if (location.pathname !== '/group') return false
+    const params = new URLSearchParams(location.search)
+    return item.tab === (params.get('tab') ?? null)
+  }
 
   const handleLogout = async () => {
     try {
@@ -47,9 +55,9 @@ export default function Layout() {
                     <NavLink
                       key={item.path}
                       to={item.path}
-                      className={({ isActive }) =>
+                      className={() =>
                         `flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold tracking-tight transition-all duration-200 ${
-                          isActive
+                          isNavActive(item)
                             ? 'bg-[#4a8768] text-white shadow-sm'
                             : 'text-[#7a7169] hover:bg-[#f2eee8] hover:text-[#25231f]'
                         }`
@@ -98,9 +106,9 @@ export default function Layout() {
               <NavLink
                 key={item.path}
                 to={item.path}
-                className={({ isActive }) =>
+                className={() =>
                   `flex flex-col items-center justify-center py-2.5 px-4 flex-1 text-xs font-bold tracking-tight transition-all ${
-                    isActive ? 'text-[#4a8768]' : 'text-[#b0a8a0]'
+                    isNavActive(item) ? 'text-[#4a8768]' : 'text-[#b0a8a0]'
                   }`
                 }
               >
