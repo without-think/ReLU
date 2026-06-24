@@ -207,46 +207,113 @@ public class GroupServiceImpl implements GroupService {
         assertLeader(group, getUser(userId));
 
         List<GroupMember> members = groupMemberRepository.findByGroupIdWithUser(groupId);
-
-        // Auto-assign roles: sort members by preferred role skill, handle multi-role if needed
-        List<MemberRole> roleSlots = new ArrayList<>(Arrays.asList(
+        List<MemberRole> roleSlots = Arrays.asList(
                 MemberRole.BACKEND, MemberRole.FRONTEND, MemberRole.AI,
-                MemberRole.RESEARCHER, MemberRole.PRESENTER));
+                MemberRole.RESEARCHER, MemberRole.PRESENTER);
 
-        // Assign preferred roles first
-        for (GroupMember m : members) {
-            if (m.getRole() == MemberRole.LEADER) continue;
-            if (m.getPreferredRole() != null && m.getRole() == MemberRole.UNASSIGNED) {
-                m.assignRole(m.getPreferredRole());
-                roleSlots.remove(m.getPreferredRole());
-            }
-        }
-
-        // Distribute remaining slots — multi-assign when members < roles
-        List<GroupMember> unassigned = members.stream()
-                .filter(m -> m.getRole() == MemberRole.UNASSIGNED)
+        List<GroupMember> nonLeaders = members.stream()
+                .filter(m -> m.getRole() != MemberRole.LEADER)
                 .collect(Collectors.toList());
 
-        // Fill remaining slots as additionalRoles on existing members if no unassigned left
-        int slotIdx = 0;
-        for (GroupMember m : unassigned) {
-            if (slotIdx < roleSlots.size()) {
-                m.assignRole(roleSlots.get(slotIdx++));
+        Map<Long, List<MemberRole>> memberRoles = new LinkedHashMap<>();
+        int totalMembers = members.size();
+        int n = nonLeaders.size();
+
+        if (n == 0) {
+            // nothing to assign
+
+        } else if (totalMembers == 2) {
+            // 총 2인팀(리더+비리더): 비리더 3개, 리더 additionalRoles 2개 → 각자 역할 3개
+            GroupMember leader = members.stream()
+                    .filter(m -> m.getRole() == MemberRole.LEADER)
+                    .findFirst().orElse(null);
+            GroupMember nonLeader = nonLeaders.get(0);
+
+            List<MemberRole> nonLeaderRoles = roleSlots.stream()
+                    .sorted(Comparator.comparingDouble(r -> -assignmentScore(nonLeader, r)))
+                    .limit(3)
+                    .collect(Collectors.toList());
+
+            List<MemberRole> leaderExtra = roleSlots.stream()
+                    .filter(r -> !nonLeaderRoles.contains(r))
+                    .collect(Collectors.toList()); // 항상 2개
+
+            memberRoles.put(nonLeader.getId(), nonLeaderRoles);
+            if (leader != null) memberRoles.put(leader.getId(), leaderExtra);
+
+        } else if (n == 2) {
+            // 비리더 2명(3인팀): 각자 정확히 3개, 1개 겸직(overlap)
+            GroupMember first = nonLeaders.stream()
+                    .max(Comparator.comparingDouble(m ->
+                            roleSlots.stream().mapToDouble(r -> assignmentScore(m, r)).sum()))
+                    .orElse(nonLeaders.get(0));
+            GroupMember second = nonLeaders.stream()
+                    .filter(m -> !m.getId().equals(first.getId()))
+                    .findFirst().orElse(nonLeaders.get(1));
+
+            List<MemberRole> firstRoles = roleSlots.stream()
+                    .sorted(Comparator.comparingDouble(r -> -assignmentScore(first, r)))
+                    .limit(3)
+                    .collect(Collectors.toList());
+
+            List<MemberRole> remaining = roleSlots.stream()
+                    .filter(r -> !firstRoles.contains(r))
+                    .collect(Collectors.toList());
+
+            MemberRole sharedRole = firstRoles.stream()
+                    .max(Comparator.comparingDouble(r -> assignmentScore(second, r)))
+                    .orElse(firstRoles.get(0));
+
+            List<MemberRole> secondRoles = new ArrayList<>(remaining);
+            secondRoles.add(sharedRole);
+
+            memberRoles.put(first.getId(), firstRoles);
+            memberRoles.put(second.getId(), secondRoles);
+
+        } else {
+            // 비리더 3명 이상: 그리디, 역할당 1명, 인당 최대 3개
+            record Candidate(GroupMember member, MemberRole role, double score) {}
+            List<Candidate> candidates = new ArrayList<>();
+            for (GroupMember m : nonLeaders) {
+                for (MemberRole r : roleSlots) {
+                    candidates.add(new Candidate(m, r, assignmentScore(m, r)));
+                }
+            }
+            candidates.sort(Comparator.comparingDouble(Candidate::score).reversed());
+
+            Set<MemberRole> filledRoles = new HashSet<>();
+            for (Candidate c : candidates) {
+                if (filledRoles.contains(c.role())) continue;
+                List<MemberRole> assigned = memberRoles.computeIfAbsent(c.member().getId(), k -> new ArrayList<>());
+                if (assigned.size() >= 3) continue;
+                assigned.add(c.role());
+                filledRoles.add(c.role());
+            }
+            for (Candidate c : candidates) {
+                if (filledRoles.size() == roleSlots.size()) break;
+                if (filledRoles.contains(c.role())) continue;
+                memberRoles.computeIfAbsent(c.member().getId(), k -> new ArrayList<>()).add(c.role());
+                filledRoles.add(c.role());
             }
         }
-        // Remaining roles: distribute as additionalRoles to members with matching skills
-        while (slotIdx < roleSlots.size()) {
-            MemberRole remaining = roleSlots.get(slotIdx++);
-            GroupMember best = members.stream()
-                    .filter(m -> m.getRole() != MemberRole.UNASSIGNED && m.getRole() != MemberRole.LEADER)
-                    .max(Comparator.comparingInt(m -> skillFor(m, remaining)))
-                    .orElse(null);
-            if (best != null) {
-                String existing = best.getAdditionalRoles();
-                String updated = (existing == null || existing.isBlank())
-                        ? remaining.name()
-                        : existing + "," + remaining.name();
-                best.setAdditionalRoles(updated);
+
+        // Apply to entities
+        for (GroupMember m : members) {
+            List<MemberRole> assigned = memberRoles.getOrDefault(m.getId(), List.of());
+            if (assigned.isEmpty()) continue;
+
+            if (m.getRole() == MemberRole.LEADER) {
+                // 리더는 LEADER 역할 유지, additionalRoles만 설정
+                String additional = assigned.stream()
+                        .map(Enum::name).collect(Collectors.joining(","));
+                m.setAdditionalRoles(additional);
+            } else {
+                m.assignRole(assigned.get(0));
+                String additional = assigned.size() > 1
+                        ? assigned.subList(1, assigned.size()).stream()
+                                .map(Enum::name).collect(Collectors.joining(","))
+                        : null;
+                m.setAdditionalRoles(additional);
             }
         }
 
@@ -255,6 +322,18 @@ public class GroupServiceImpl implements GroupService {
                 .map(MemberResponse::new)
                 .collect(Collectors.toList());
         return new GroupDetailResponse(group, memberResponses);
+    }
+
+    // score = preference(48) + radar avg(20) + role skill(20) + temperature bonus(2)
+    private double assignmentScore(GroupMember m, MemberRole role) {
+        double preference = (role == m.getPreferredRole()) ? 48.0 : 0.0;
+        double radarAvg = (m.getSelfContributing() + m.getSelfInteracting()
+                + m.getSelfKeepingOnTrack() + m.getSelfExpectingQuality()
+                + m.getSelfKnowledgeSkills()) / 5.0;
+        double radar = (radarAvg / 5.0) * 20.0;
+        double skill = (skillFor(m, role) / 5.0) * 20.0;
+        double temp = (m.getTemperature() / 100.0) * 2.0;
+        return preference + radar + skill + temp;
     }
 
     @Override

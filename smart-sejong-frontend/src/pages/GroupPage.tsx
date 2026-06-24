@@ -199,6 +199,13 @@ export default function GroupPage() {
     setTeamView(nextView)
   }, [searchParams])
 
+  // If roles just got confirmed, the active tab might not exist in the new set — keep it if valid, else snap to roles
+  useEffect(() => {
+    if (!groupDetail || groupDetail.rolesConfirmed) return
+    const onboardingIds: Tab[] = ['home', 'availability', 'roles']
+    if (!onboardingIds.includes(activeTab)) setActiveTab('roles')
+  }, [groupDetail?.rolesConfirmed, activeTab])
+
   const filteredCourses = useMemo(() => {
     if (!courseSearch.trim()) return courses
     const q = courseSearch.toLowerCase()
@@ -228,7 +235,7 @@ export default function GroupPage() {
     setSearchParams(view === 'find' ? { tab: 'find' } : {})
   }
 
-  const tabs: { id: Tab; label: string }[] = [
+  const allTabs: { id: Tab; label: string }[] = [
     { id: 'home', label: '팀 홈' },
     { id: 'timetable', label: '내 시간표' },
     { id: 'availability', label: '가능 시간' },
@@ -238,6 +245,13 @@ export default function GroupPage() {
     { id: 'review', label: '동료 평가' },
     { id: 'ecampus', label: '과제 제출 이력' },
   ]
+  // Before roles are confirmed, only show onboarding-relevant tabs
+  const onboardingTabs: { id: Tab; label: string }[] = [
+    { id: 'home', label: '팀 홈' },
+    { id: 'availability', label: '가능 시간' },
+    { id: 'roles', label: '역할 배분' },
+  ]
+  const tabs = groupDetail?.rolesConfirmed ? allTabs : onboardingTabs
 
   return (
     <div className="space-y-6">
@@ -377,7 +391,7 @@ export default function GroupPage() {
                 view={teamView}
                 onViewChange={handleTeamViewChange}
                 onSelectCourse={setSelectedCourse}
-                onSelectGroup={(groupId) => { setSelectedGroupId(groupId); setActiveTab('home') }}
+                onSelectGroup={(groupId) => { setSelectedGroupId(groupId); setActiveTab('roles') }}
                 onJoinGroup={(inviteCode) => courseJoinMutation.mutate(inviteCode)}
                 onCreateGroup={() => setShowCreateModal(true)}
               />
@@ -1046,6 +1060,10 @@ function RolesTab({ group, onRefresh }: {
       queryClient.invalidateQueries({ queryKey: ['group', group.id] })
       onRefresh()
     },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg ?? '준비 완료 처리에 실패했습니다.')
+    },
   })
 
   const confirmMutation = useMutation({
@@ -1055,12 +1073,17 @@ function RolesTab({ group, onRefresh }: {
       queryClient.invalidateQueries({ queryKey: ['group', group.id] })
       onRefresh()
     },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg ?? '역할 확정에 실패했습니다.')
+    },
   })
 
   const assignMutation = useMutation({
     mutationFn: ({ memberId, role }: { memberId: number; role: MemberRole }) =>
       api.assignRole(group.id, memberId, role),
     onSuccess: () => { toast.success('역할이 변경되었습니다.'); onRefresh() },
+    onError: () => toast.error('역할 변경에 실패했습니다.'),
   })
 
   const radarData = (m: TeamMember) => [
@@ -1230,38 +1253,25 @@ function RolesTab({ group, onRefresh }: {
             const addRoles = m.additionalRoles
               ? m.additionalRoles.split(',').filter(Boolean) as MemberRole[]
               : []
+            const isAssigned = m.role !== 'UNASSIGNED'
             return (
               <div key={m.userId} className="p-4 border border-[#e7e0d7] rounded-2xl bg-white/60 space-y-3">
-                {/* 상단: 이름 + 배지 + 온도 + 역할 select */}
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex-1 min-w-0">
+                {/* 이름 행 */}
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-[#25231f]">{m.name}</span>
-                      <span className={`badge ${ROLE_COLORS[m.role]}`}>{ROLE_LABELS[m.role]}</span>
-                      {addRoles.map(r => (
-                        <span key={r} className={`badge ${ROLE_COLORS[r as MemberRole]}`}>+{ROLE_LABELS[r as MemberRole]}</span>
-                      ))}
                       <span className={`text-sm font-extrabold ${tempColor(m.temperature)}`}>
                         {m.temperature.toFixed(1)}°
                       </span>
-                      {m.leadershipWilling && (
-                        <span className="badge bg-[#a8793d]/15 text-[#a8793d]">리더 가능</span>
-                      )}
-                      {m.prConfident && (
-                        <span className="badge bg-[#31465d]/12 text-[#31465d]">PR 자신</span>
-                      )}
-                      {m.preferredRole && (
-                        <span className="text-xs text-[#7a7169]">
-                          선호: <span className="font-bold">{ROLE_LABELS[m.preferredRole]}</span>
-                        </span>
-                      )}
-                      {m.preferenceReady && (
+                      {m.preferenceReady && !rolesConfirmed && (
                         <span className="text-xs text-[#4a8768] font-bold">✓ 준비됨</span>
                       )}
                     </div>
                     <p className="text-xs text-[#b0a8a0] mt-0.5">{m.major} · {m.studentId}</p>
                   </div>
-                  {/* 역할 직접 배정 (항상 가능, 방장/일반 모두) */}
+
+                  {/* 역할 직접 배정 select (확정 전만) */}
                   {!rolesConfirmed && (
                     <select
                       className="input text-sm py-1.5 w-28 flex-shrink-0"
@@ -1275,7 +1285,49 @@ function RolesTab({ group, onRefresh }: {
                   )}
                 </div>
 
-                {/* 하단: 스킬바 + 레이더 */}
+                {/* 역할 행: 선호 / 배정 분리 */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                  {/* 선호역할 — 본인이 입력한 것 */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-[#b0a8a0] font-medium">선호</span>
+                    {m.preferredRole ? (
+                      <span className="px-2.5 py-0.5 rounded-full border-2 border-dashed border-[#b0a8a0] text-[#7a7169] text-xs font-bold">
+                        {ROLE_LABELS[m.preferredRole]}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-[#d0c8bf]">미입력</span>
+                    )}
+                  </div>
+
+                  {/* 배정역할 — 시스템 또는 수동 배정 결과 */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs text-[#b0a8a0] font-medium">배정</span>
+                    {isAssigned ? (
+                      <>
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${ROLE_COLORS[m.role]}`}>
+                          {ROLE_LABELS[m.role]}
+                        </span>
+                        {addRoles.map(r => (
+                          <span key={r} className={`px-2.5 py-0.5 rounded-full text-xs font-bold border border-dashed ${ROLE_COLORS[r as MemberRole]}`}>
+                            +{ROLE_LABELS[r as MemberRole]}
+                          </span>
+                        ))}
+                      </>
+                    ) : (
+                      <span className="text-xs text-[#d0c8bf]">미배정</span>
+                    )}
+                  </div>
+
+                  {/* 부가 뱃지 */}
+                  {m.leadershipWilling && (
+                    <span className="badge bg-[#a8793d]/15 text-[#a8793d]">리더 가능</span>
+                  )}
+                  {m.prConfident && (
+                    <span className="badge bg-[#31465d]/12 text-[#31465d]">PR 자신</span>
+                  )}
+                </div>
+
+                {/* 스킬바 + 레이더 */}
                 <div className="flex gap-4 items-center">
                   <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5">
                     {SKILL_PARTS.map(({ key, label }) => (
